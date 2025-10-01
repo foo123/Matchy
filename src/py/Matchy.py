@@ -28,8 +28,12 @@ class Matchy:
 
         # construct transition matrix
         m = len(pattern)
+        in_pattern = {}
+        for i in range(m):
+            in_pattern[pattern[i]] = 1
         suffix = {}
         def is_suffix(k, q, c):
+            if c not in in_pattern: return False
             ks = str(k)
             qs = str(q)
             if ks not in suffix: suffix[ks] = {}

@@ -2,7 +2,10 @@
 
 String searching algorithms for PHP, JavaScript, Python
 
+![Matchy](/matchy.jpg)
+
 **version: 1.0.0**
+
 
 **Included Algorithms**
 

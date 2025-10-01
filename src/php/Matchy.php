@@ -25,8 +25,14 @@ class Matchy
 
         // construct transition matrix
         $m = mb_strlen($pattern, 'UTF-8');
+        $in_pattern = array();
+        for ($i=0; $i<$m; ++$i)
+        {
+            $in_pattern[mb_substr($pattern, $i, 1, 'UTF-8')] = 1;
+        }
         $suffix = array();
-        $is_suffix = function($k, $q, $c) use ($pattern, &$lookup) {
+        $is_suffix = function($k, $q, $c) use ($pattern, $in_pattern, &$suffix) {
+            if (!isset($in_pattern[$c])) return false;
             if (!isset($suffix[$k])) $suffix[$k] = array();
             if (!isset($suffix[$k][$q])) $suffix[$k][$q] = array();
             if (!isset($suffix[$k][$q][$c]))

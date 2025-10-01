@@ -33,10 +33,16 @@ Matchy.prototype = {
 
         // construct transition matrix
         var m = pattern.length;
-        var delta, d, is_suffix, suffix;
+        var delta, d, is_suffix, suffix, in_pattern;
 
+        in_pattern = {};
+        for (var i=0; i<m; ++i)
+        {
+            in_pattern[pattern.charAt(i)] = 1;
+        }
         suffix = {};
         is_suffix = function(k, q, c) {
+            if (!isset(in_pattern, c) || (1 !== in_pattern[c])) return false;
             if (null == suffix[k]) suffix[k] = {};
             if (null == suffix[k][q]) suffix[k][q] = {};
             if (null == suffix[k][q][c])
