@@ -33,7 +33,6 @@ class Matchy:
             in_pattern[pattern[i]] = 1
         suffix = {}
         def is_suffix(k, q, c):
-            if c not in in_pattern: return False
             ks = str(k)
             qs = str(q)
             if ks not in suffix: suffix[ks] = {}
@@ -46,6 +45,7 @@ class Matchy:
 
         d = list(map(lambda _: {}, [0] * (m+1)))
         def delta(q, c):
+            if c not in in_pattern: return 0
             if c in d[q]: return d[q][c]
             k = min(m, q+1)
             while (0 < k) and not is_suffix(k, q, c): k -= 1

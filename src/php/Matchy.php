@@ -31,8 +31,7 @@ class Matchy
             $in_pattern[mb_substr($pattern, $i, 1, 'UTF-8')] = 1;
         }
         $suffix = array();
-        $is_suffix = function($k, $q, $c) use ($pattern, $in_pattern, &$suffix) {
-            if (!isset($in_pattern[$c])) return false;
+        $is_suffix = function($k, $q, $c) use ($pattern, &$suffix) {
             if (!isset($suffix[$k])) $suffix[$k] = array();
             if (!isset($suffix[$k][$q])) $suffix[$k][$q] = array();
             if (!isset($suffix[$k][$q][$c]))
@@ -45,7 +44,8 @@ class Matchy
         };
 
         $d = array_map(function() {return array();}, array_fill(0, $m+1, 0));
-        $delta = function($q, $c) use (&$d, $pattern, $m, &$is_suffix) {
+        $delta = function($q, $c) use (&$d, $pattern, $m, $in_pattern, &$is_suffix) {
+            if (!isset($in_pattern[$c])) return 0;
             if (isset($d[$q][$c])) return $d[$q][$c];
             $k = min($m, $q+1);
             while ((0 < $k) && !$is_suffix($k, $q, $c)) --$k;

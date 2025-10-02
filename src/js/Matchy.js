@@ -42,7 +42,6 @@ Matchy.prototype = {
         }
         suffix = {};
         is_suffix = function(k, q, c) {
-            if (!isset(in_pattern, c) || (1 !== in_pattern[c])) return false;
             if (null == suffix[k]) suffix[k] = {};
             if (null == suffix[k][q]) suffix[k][q] = {};
             if (null == suffix[k][q][c])
@@ -56,6 +55,7 @@ Matchy.prototype = {
 
         d = array_fill(0, m+1, 0).map(function() {return {};});
         delta = function(q, c) {
+            if (!isset(in_pattern, c) || (1 !== in_pattern[c])) return 0;
             if (isset(d[q], c)) return d[q][c];
             var k = min(m, q+1);
             while ((0 < k) && !is_suffix(k, q, c)) --k;
