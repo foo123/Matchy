@@ -2,7 +2,7 @@
 *  Matchy
 *  String searching algorithms for PHP, JavaScript, Python
 *
-*  @version: 1.0.0
+*  @version: 2.0.0
 *  https://github.com/foo123/Matchy
 *
 **/
@@ -22,7 +22,7 @@ else if (!(name in root)) /* Browser/WebWorker/.. */
 function Matchy()
 {
 }
-Matchy.VERSION = "1.0.0";
+Matchy.VERSION = "2.0.0";
 Matchy.prototype = {
     constructor: Matchy,
 
@@ -424,11 +424,290 @@ function non_matcher(string, offset)
     return -1;
 }
 
+// non-deterministic finite automaton
+function NFA(input, type)
+{
+    var self = this;
+    if (!(self instanceof NFA)) return new NFA(input, type);
+    if (null == type) type = 'l';
+    if ('?' === type) type = {min:0, max:1};
+    if ('*' === type) type = {min:0, max:INF};
+    if ('+' === type) type = {min:1, max:INF};
+    self.input = input;
+    self.type = type;
+}
+NFA.prototype = {
+    constructor: NFA,
+
+    input: null,
+    type: null,
+
+    q0: function() {
+        var self = this, type = self.type, input = self.input;
+        if (is_obj(type))
+        {
+            if (isset(type, 'min'))
+            {
+                return [input.q0(), 0];
+            }
+            else
+            {
+                return [
+                    range(0, type.errors, 1),
+                    range(0, type.errors, 1)
+                ];
+            }
+        }
+        if ('l' === type)
+        {
+            return 0;
+        }
+        if ('^' === type)
+        {
+            return false;
+        }
+        if ('$' === type)
+        {
+            return false;
+        }
+        if ('!' === type)
+        {
+            return input.q0();
+        }
+        if ('|' === type)
+        {
+            return input.map(function(nfa) {return nfa.q0();});
+        }
+        if (',' === type)
+        {
+            return [input[0].q0(), 0];
+        }
+    },
+
+    d: function(q, c) {
+        var self = this, type = self.type, input = self.input;
+        if (is_obj(type))
+        {
+            if (isset(type, 'min'))
+            {
+                q = [input.d(q[0], c), q[1]];
+                if (input.accept(q[0])) q = [input.q0(), q[1]+1];
+                return q;
+            }
+            else
+            {
+                var k = type.errors,
+                    w = input,
+                    n = input.length,
+                    index = q[0],
+                    value = q[1],
+                    new_index = [],
+                    new_value = [],
+                    m = index.length,
+                    last_i = -1,
+                    last_v = 0,
+                    next_i = -1,
+                    i, j, v, d
+                ;
+                if ((0 < m) && (0 === index[0]) && (value[0] < k))
+                {
+                    last_i = 0;
+                    last_v = value[0] + 1;
+                    new_index.push(last_i);
+                    new_value.push(last_v);
+                }
+                for (j=0; j<m; ++j)
+                {
+                    i = index[j];
+                    if (i >= n) break;
+                    d = w.charAt(i) === c ? 0 : 1;
+                    v = value[j] + d;
+                    next_i = j+1 < m ? index[j+1] : -1;
+                    if (i === last_i)
+                    {
+                        v = min(v, last_v + 1);
+                    }
+                    if (i+1 === next_i)
+                    {
+                        v = min(v, value[j+1] + 1);
+                    }
+                    if (v <= k)
+                    {
+                        last_i = i+1;
+                        last_v = v;
+                        new_index.push(last_i);
+                        new_value.push(last_v);
+                    }
+                }
+                return [
+                    new_index,
+                    new_value
+                ];
+            }
+        }
+        if ('l' === type)
+        {
+            if (is_number(c)) return q;
+            return q < input.length ? (c === input.charAt(q) ? q+1 : 0) : 0;
+        }
+        if ('^' === type)
+        {
+            return 0 === c;
+        }
+        if ('$' === type)
+        {
+            return 1 === c;
+        }
+        if ('!' === type)
+        {
+            return input.d(q, c);
+        }
+        if ('|' === type)
+        {
+            return input.map(function(nfa, i) {return nfa.d(q[i], c);});
+        }
+        if (',' === type)
+        {
+            var i = q[1], q0, q1;
+            if (input[i].accept(q[0]))
+            {
+                if (i+1 < input.length)
+                {
+                    q0 = [input[i].d(q[0], c), i];
+                    q1 = [input[i+1].d(input[i+1].q0(), c), i+1];
+                    return input[i+1].reject(q1[0]) && !input[i].reject(q0[0]) ? q0 : q1;
+                }
+                else
+                {
+                    return q;
+                }
+            }
+            else
+            {
+                return [input[i].d(q[0], c), i];
+            }
+        }
+    },
+
+    accept: function(q) {
+        var self = this, type = self.type, input = self.input;
+        if (is_obj(type))
+        {
+            if (isset(type, 'min'))
+            {
+                return (type.min <= q[1]) && (q[1] <= type.max);
+            }
+            else
+            {
+                return (0 < q[0].length) && (q[0][q[0].length-1] >= input.length);
+            }
+        }
+        if ('l' === type)
+        {
+            return q === input.length;
+        }
+        if ('^' === type)
+        {
+            return q;
+        }
+        if ('$' === type)
+        {
+            return q;
+        }
+        if ('!' === type)
+        {
+            return input.reject(q);
+        }
+        if ('|' === type)
+        {
+            return 0 < input.filter(function(nfa, i) {return nfa.accept(q[i]);}).length;
+        }
+        if (',' === type)
+        {
+            return (q[1]+1 === input.length) && input[q[1]].accept(q[0]);
+        }
+    },
+
+    reject: function(q) {
+        var self = this, type = self.type, input = self.input;
+        if (is_obj(type))
+        {
+            if (isset(type, 'min'))
+            {
+                return ((q[1] >= type.max) && input.accept(q[0])) || ((q[1] < type.min) && input.reject(q[0]));
+            }
+            else
+            {
+                return !q[0].length;
+            }
+        }
+        if ('l' === type)
+        {
+            return 0 === q;
+        }
+        if ('^' === type)
+        {
+            return !q;
+        }
+        if ('$' === type)
+        {
+            return !q;
+        }
+        if ('!' === type)
+        {
+            return input.accept(q);
+        }
+        if ('|' === type)
+        {
+            return input.length === input.filter(function(nfa, i) {return nfa.reject(q[i]);}).length;
+        }
+        if (',' === type)
+        {
+            return input[q[1]].reject(q[0]);
+        }
+    },
+
+    match: function(string, offset, q) {
+        var self = this;
+        var i = offset || 0,
+            j = i,
+            n = string.length;
+        if (null == q) q = self.q0();
+        for (;;)
+        {
+            if (j >= n)
+            {
+                ++i;
+                if (i > n) break;
+                j = i;
+                q = self.q0();
+            }
+            if (0 === j) q = self.d(q, 0);
+            q = self.d(q, string.charAt(j));
+            if (n-1 === j) q = self.d(q, 1);
+            if (self.accept(q))
+            {
+                return i; // matched
+            }
+            else if (self.reject(q))
+            {
+                j = n; // failed, try next
+            }
+            else
+            {
+                ++j; // continue
+            }
+        }
+        return -1;
+    }
+};
+Matchy.NFA = NFA;
+
 // utils
 var stdMath = Math,
     min = stdMath.min,
     max = stdMath.max,
-    pow = stdMath.pow,
+    INF = Infinity,
     HAS = Object.prototype.hasOwnProperty,
     toString = Object.prototype.toString;
 
@@ -436,11 +715,38 @@ function isset(o, x)
 {
     return HAS.call(o, x);
 }
+function is_number(x)
+{
+    return 'number' === typeof x;
+}
+function is_string(x)
+{
+    return '[object String]' === toString.call(x);
+}
+function is_array(x)
+{
+    return '[object Array]' === toString.call(x);
+}
+function is_obj(x)
+{
+    return '[object Object]' === toString.call(x);
+}
 function array_fill(i0, n, v)
 {
     var array = new Array(n);
     for (var j=0,i=i0; j<n; ++i,++j) array[i] = v;
     return array;
+}
+function range(start, end, step)
+{
+    if (null == step) step = 1;
+    var range = [];
+    while (start <= end)
+    {
+        range.push(start);
+        start += step;
+    }
+    return range;
 }
 
 // export it

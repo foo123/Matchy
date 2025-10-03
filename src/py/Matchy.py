@@ -2,7 +2,7 @@
 #  Matchy
 #  String searching algorithms for PHP, JavaScript, Python
 #
-#  @version: 1.0.0
+#  @version: 2.0.0
 #  https://github.com/foo123/Matchy
 #
 ##
@@ -16,7 +16,7 @@ class Matchy:
     https://github.com/foo123/Matchy
     """
 
-    VERSION = "1.0.0"
+    VERSION = "2.0.0"
 
     def __init__(self):
         pass
@@ -301,6 +301,173 @@ class Matchy:
 
 def non_matcher(string, offset = 0):
     return -1
+
+# non-deterministic finite automaton
+class NFA:
+    def __init__(self, input, type = 'l'):
+        if '?' == type: type = {'min':0, 'max':1}
+        if '*' == type: type = {'min':0, 'max':INF}
+        if '+' == type: type = {'min':1, 'max':INF}
+        self.input = input
+        self.type = type
+
+    def q0(self):
+        type = self.type
+        input = self.input
+        if isinstance(type, dict):
+            if 'min' in type:
+                return (input.q0(), 0)
+            else:
+                return (
+                    list(range(0, type['errors']+1, 1)),
+                    list(range(0, type['errors']+1, 1))
+                )
+        if 'l' == type:
+            return 0
+        if '^' == type:
+            return False
+        if '$' == type:
+            return False
+        if '!' == type:
+            return input.q0()
+        if '|' == type:
+            return tuple([nfa.q0() for nfa in input])
+        if ',' == type:
+            return (input[0].q0(), 0)
+
+    def d(self, q, c):
+        type = self.type
+        input = self.input
+        if isinstance(type, dict):
+            if 'min' in type:
+                q = (input.d(q[0], c), q[1])
+                if input.accept(q[0]): q = (input.q0(), q[1]+1)
+                return q
+            else:
+                k = type['errors']
+                w = input
+                n = len(w)
+                index, value = q
+                new_index = []
+                new_value = []
+                m = len(index)
+                last_i = -1
+                last_v = 0
+                next_i = -1
+                if (0 < m) and (0 == index[0]) and (value[0] < k):
+                    last_i = 0
+                    last_v = value[0] + 1
+                    new_index.append(last_i)
+                    new_value.append(last_v)
+
+                for j, i in enumerate(index):
+                    if i >= n: break
+                    d = 0 if w[i] == c else 1
+                    v = value[j] + d
+                    next_i = index[j+1] if j+1 < m else -1
+                    if i == last_i:
+                        v = min(v, last_v + 1)
+                    if i+1 == next_i:
+                        v = min(v, value[j+1] + 1)
+                    if v <= k:
+                        last_i = i+1
+                        last_v = v
+                        new_index.append(last_i)
+                        new_value.append(last_v)
+                return (
+                    new_index,
+                    new_value
+                )
+        if 'l' == type:
+            if isinstance(c, int): return q
+            return (q+1 if c == input[q] else 0) if q < len(input) else 0
+        if '^' == type:
+            return 0 == c
+        if '$' == type:
+            return 1 == c
+        if '!' == type:
+            return input.d(q, c);
+        if '|' == type:
+            return tuple([nfa.d(q[i], c) for i, nfa in enumerate(input)])
+        if ',' == type:
+            i = q[1]
+            if input[i].accept(q[0]):
+                if i+1 < len(input):
+                    q0 = (input[i].d(q[0], c), i)
+                    q1 = (input[i+1].d(input[i+1].q0(), c), i+1)
+                    return q0 if input[i+1].reject(q1[0]) and not input[i].reject(q0[0]) else q1
+                else:
+                    return q
+            else:
+                return (input[i].d(q[0], c), i)
+
+    def accept(self, q):
+        type = self.type
+        input = self.input
+        if isinstance(type, dict):
+            if 'min' in type:
+                return (type['min'] <= q[1]) and (q[1] <= type['max'])
+            else:
+                return (0 < len(q[0])) and (q[0][-1] >= len(input))
+        if 'l' == type:
+            return q == len(input)
+        if '^' == type:
+            return q
+        if '$' == type:
+            return q
+        if '!' == type:
+            return input.reject(q)
+        if '|' == type:
+            return 0 < len(list(filter(lambda entry: entry[1].accept(q[entry[0]]), enumerate(input))))
+        if ',' == type:
+            return (q[1]+1 == len(input)) and input[q[1]].accept(q[0])
+
+    def reject(self, q):
+        type = self.type
+        input = self.input
+        if isinstance(type, dict):
+            if 'min' in type:
+                return ((q[1] >= type['max']) and input.accept(q[0])) or ((q[1] < type['min']) and input.reject(q[0]))
+            else:
+                return not q[0]
+        if 'l' == type:
+            return 0 == q
+        if '^' == type:
+            return not q
+        if '$' == type:
+            return not q
+        if '!' == type:
+            return input.accept(q)
+        if '|' == type:
+            return len(input) == len(list(filter(lambda entry: entry[1].reject(q[entry[0]]), enumerate(input))))
+        if ',' == type:
+            return input[q[1]].reject(q[0])
+
+    def match(self, string, offset = 0, q = None):
+        i = offset
+        j = i
+        n = len(string)
+        if q is None: q = self.q0()
+        while True:
+            if j >= n:
+                i += 1
+                if i >= n: break
+                j = i
+                q = self.q0()
+            if 0 == j: q = self.d(q, 0)
+            q = self.d(q, string[j])
+            if n-1 == j: q = self.d(q, 1)
+            if self.accept(q):
+                return i # matched
+            elif self.reject(q):
+                j = n # failed, try next
+            else:
+                j += 1 # continue
+        return -1
+
+Matchy.NFA = NFA
+
+INF = float('inf')
 
 __all__ = ['Matchy']
 

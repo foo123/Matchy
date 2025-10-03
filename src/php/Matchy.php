@@ -3,7 +3,7 @@
 *  Matchy
 *  String searching algorithms for PHP, JavaScript, Python
 *
-*  @version: 1.0.0
+*  @version: 2.0.0
 *  https://github.com/foo123/Matchy
 *
 **/
@@ -11,7 +11,7 @@ if (!class_exists('Matchy', false))
 {
 class Matchy
 {
-    const VERSION = "1.0.0";
+    const VERSION = "2.0.0";
 
     public function __construct()
     {
@@ -408,6 +408,285 @@ class Matchy
             return -1;
         };
         return null === $string ? $non_matcher : $non_matcher($string, $offset); // TODO
+    }
+}
+// non-deterministic finite automaton
+class MatchyNFA
+{
+    protected $input = null;
+    protected $type = null;
+
+    public function __construct($input, $type = 'l')
+    {
+        if ('?' === $type) $type = array('min'=>0, 'max'=>1);
+        if ('*' === $type) $type = array('min'=>0, 'max'=>INF);
+        if ('+' === $type) $type = array('min'=>1, 'max'=>INF);
+        $this->input = $input;
+        $this->type = $type;
+    }
+
+    public function q0()
+    {
+        $type = $this->type;
+        $input = $this->input;
+        if (is_array($type))
+        {
+            if (isset($type['min']))
+            {
+                return array($input->q0(), 0);
+            }
+            else
+            {
+                return array(
+                    range(0, $type['errors'], 1),
+                    range(0, $type['errors'], 1)
+                );
+            }
+        }
+        if ('l' === $type)
+        {
+            return 0;
+        }
+        if ('^' === $type)
+        {
+            return false;
+        }
+        if ('$' === $type)
+        {
+            return false;
+        }
+        if ('!' === $type)
+        {
+            return $input->q0();
+        }
+        if ('|' === $type)
+        {
+            return array_map(function($nfa) {return $nfa->q0();}, $input);
+        }
+        if (',' === $type)
+        {
+            return array($input[0]->q0(), 0);
+        }
+    }
+
+    public function d($q, $c)
+    {
+        $type = $this->type;
+        $input = $this->input;
+        if (is_array($type))
+        {
+            if (isset($type['min']))
+            {
+                $q = array($input->d($q[0], $c), $q[1]);
+                if ($input->accept($q[0])) $q = array($input->q0(), $q[1]+1);
+                return $q;
+            }
+            else
+            {
+                $k = $type['errors'];
+                $w = $input;
+                $n = mb_strlen($w, 'UTF-8');
+                $index = $q[0];
+                $value = $q[1];
+                $new_index = array();
+                $new_value = array();
+                $m = count($index);
+                $last_i = -1;
+                $last_v = 0;
+                $next_i = -1;
+                if ((0 < $m) && (0 === $index[0]) && ($value[0] < $k))
+                {
+                    $last_i = 0;
+                    $last_v = $value[0] + 1;
+                    $new_index[] = $last_i;
+                    $new_value[] = $last_v;
+                }
+                foreach ($index as $j => $i)
+                {
+                    if ($i >= $n) break;
+                    $d = mb_substr($w, $i, 1) === $c ? 0 : 1;
+                    $v = $value[$j] + $d;
+                    $next_i = $j+1 < $m ? $index[$j+1] : -1;
+                    if ($i === $last_i)
+                    {
+                        $v = min($v, $last_v + 1);
+                    }
+                    if ($i+1 === $next_i)
+                    {
+                        $v = min($v, $value[$j+1] + 1);
+                    }
+                    if ($v <= $k)
+                    {
+                        $last_i = $i+1;
+                        $last_v = $v;
+                        $new_index[] = $last_i;
+                        $new_value[] = $last_v;
+                    }
+                }
+                return array(
+                    $new_index,
+                    $new_value,
+                );
+            }
+        }
+        if ('l' === $type)
+        {
+            if (is_int($c)) return $q;
+            return $q < mb_strlen($input, 'UTF-8') ? ($c === mb_substr($input, $q, 1, 'UTF-8') ? $q+1 : 0) : 0;
+        }
+        if ('^' === $type)
+        {
+            return 0 === $c;
+        }
+        if ('$' === $type)
+        {
+            return 1 === $c;
+        }
+        if ('!' === $type)
+        {
+            return $input->d($q, $c);
+        }
+        if ('|' === $type)
+        {
+            return array_map(function($i) use ($input, $q, $c) {return $input[$i]->d($q[$i], $c);}, array_keys($input));
+        }
+        if (',' === $type)
+        {
+            $i = $q[1];
+            if ($input[$i]->accept($q[0]))
+            {
+                if ($i+1 < count($input))
+                {
+                    $q0 = array($input[$i]->d($q[0], $c), $i);
+                    $q1 = array($input[$i+1]->d($input[$i+1]->q0(), $c), $i+1);
+                    return $input[$i+1]->reject($q1[0]) && !$input[$i]->reject($q0[0]) ? $q0 : $q1;
+                }
+                else
+                {
+                    return $q;
+                }
+            }
+            else
+            {
+                return array($input[$i]->d($q[0], $c), $i);
+            }
+        }
+    }
+
+    public function accept($q)
+    {
+        $type = $this->type;
+        $input = $this->input;
+        if (is_array($type))
+        {
+            if (isset($type['min']))
+            {
+                return ($type['min'] <= $q[1]) && ($q[1] <= $type['max']);
+            }
+            else
+            {
+                return (0 < count($q[0])) && ($q[0][count($q[0])-1] >= mb_strlen($input, 'UTF-8'));
+            }
+        }
+        if ('l' === $type)
+        {
+            return $q === mb_strlen($input, 'UTF-8');
+        }
+        if ('^' === $type)
+        {
+            return $q;
+        }
+        if ('$' === $type)
+        {
+            return $q;
+        }
+        if ('!' === $type)
+        {
+            return $input->reject($q);
+        }
+        if ('|' === $type)
+        {
+            return 0 < count(array_filter(array_keys($input), function($i) use ($input, $q) {return $input[$i]->accept($q[$i]);}));
+        }
+        if (',' === $type)
+        {
+            return ($q[1]+1 === count($input)) && $input[$q[1]]->accept($q[0]);
+        }
+    }
+
+    public function reject($q)
+    {
+        $type = $this->type;
+        $input = $this->input;
+        if (is_array($type))
+        {
+            if (isset($type['min']))
+            {
+                return (($q[1] >= $type['max']) && $input->accept($q[0])) || (($q[1] < $type['min']) && $input->reject($q[0]));
+            }
+            else
+            {
+                return empty($q[0]);
+            }
+        }
+        if ('l' === $type)
+        {
+            return 0 === $q;
+        }
+        if ('^' === $type)
+        {
+            return !$q;
+        }
+        if ('$' === $type)
+        {
+            return !$q;
+        }
+        if ('!' === $type)
+        {
+            return $input->accept($q);
+        }
+        if ('|' === $type)
+        {
+            return count($input) === count(array_filter(array_keys($input), function($i) use ($input, $q) {return $input[$i]->reject($q[$i]);}));
+        }
+        if (',' === $type)
+        {
+            return $input[$q[1]]->reject($q[0]);
+        }
+    }
+
+    public function match($string, $offset = 0, $q = null)
+    {
+        $i = $offset;
+        $j = $i;
+        $n = mb_strlen($string, 'UTF-8');
+        if (null === $q) $q = $this->q0();
+        for (;;)
+        {
+            if ($j >= $n)
+            {
+                ++$i;
+                if ($i >= $n) break;
+                $j = $i;
+                $q = $this->q0();
+            }
+            if (0 === $j) $q = $this->d($q, 0);
+            $q = $this->d($q, mb_substr($string, $j, 1, 'UTF-8'));
+            if ($n-1 === $j) $q = $this->d($q, 1);
+            if ($this->accept($q))
+            {
+                return $i; // matched
+            }
+            elseif ($this->reject($q))
+            {
+                $j = $n; // failed, try next
+            }
+            else
+            {
+                ++$j; // continue
+            }
+        }
+        return -1;
     }
 }
 }

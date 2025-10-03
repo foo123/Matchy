@@ -1,22 +1,23 @@
 # Matchy
 
-String searching algorithms for PHP, JavaScript, Python
+Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 
 ![Matchy](/matchy.jpg)
 
-**version: 1.0.0**
+**version: 2.0.0**
 
 
-**Included Algorithms**
+**Included Algorithms:**
 
-* [FSA (Finite-State-Automaton) Matcher](https://en.wikipedia.org/wiki/Finite-state_machine)
+* [Finite State Automaton Matcher](https://euroinformatica.ro/documentation/programming/!!!Algorithms_CORMEN!!!/DDU0214.html)
 * [Rabin-Karp Matcher](https://en.wikipedia.org/wiki/Rabin%E2%80%93Karp_algorithm)
-* [KMP (Knuth-Morris-Pratt) Matcher](https://en.wikipedia.org/wiki/Knuth%E2%80%93Morris%E2%80%93Pratt_algorithm)
+* [Knuth-Morris-Pratt Matcher](https://en.wikipedia.org/wiki/Knuth%E2%80%93Morris%E2%80%93Pratt_algorithm)
 * [Boyer-Moore Matcher](https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm)
 * [Two-Way Matcher](https://en.wikipedia.org/wiki/Two-way_string-matching_algorithm)
 * [Commentz-Walter Matcher](https://en.wikipedia.org/wiki/Commentz-Walter_algorithm) (TODO)
 * [Baeza-Yates-Gonnet Matcher](https://en.wikipedia.org/wiki/Bitap_algorithm) (TODO)
 * [Aho-Corasick Matcher](https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm) (TODO)
+* Generic Finite Automaton that matches [regular expression patterns](https://en.wikipedia.org/wiki/Nondeterministic_finite_automaton), [fuzzy patterns](https://en.wikipedia.org/wiki/Levenshtein_automaton) and combinations of both
 
 **examples:**
 
