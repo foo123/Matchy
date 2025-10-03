@@ -1,6 +1,6 @@
 ##
 #  Matchy
-#  String searching algorithms for PHP, JavaScript, Python
+#  Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 #
 #  @version: 2.0.0
 #  https://github.com/foo123/Matchy
@@ -31,17 +31,10 @@ class Matchy:
         in_pattern = {}
         for i in range(m):
             in_pattern[pattern[i]] = 1
-        suffix = {}
         def is_suffix(k, q, c):
-            ks = str(k)
-            qs = str(q)
-            if ks not in suffix: suffix[ks] = {}
-            if qs not in suffix[ks]: suffix[ks][qs] = {}
-            if c not in suffix[ks][qs]:
-                s1 = pattern[0:k]
-                s2 = pattern[0:q] + c
-                suffix[ks][qs][c] = (s1 == s2[-len(s1):])
-            return suffix[ks][qs][c]
+            s1 = pattern[0:k]
+            s2 = pattern[0:q] + c
+            return (s1 == s2[-len(s1):])
 
         d = list(map(lambda _: {}, [0] * (m+1)))
         def delta(q, c):

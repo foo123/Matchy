@@ -1,6 +1,6 @@
 /**
 *  Matchy
-*  String searching algorithms for PHP, JavaScript, Python
+*  Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 *
 *  @version: 2.0.0
 *  https://github.com/foo123/Matchy
@@ -33,24 +33,17 @@ Matchy.prototype = {
 
         // construct transition matrix
         var m = pattern.length;
-        var delta, d, is_suffix, suffix, in_pattern;
+        var delta, d, is_suffix, in_pattern;
 
         in_pattern = {};
         for (var i=0; i<m; ++i)
         {
             in_pattern[pattern.charAt(i)] = 1;
         }
-        suffix = {};
         is_suffix = function(k, q, c) {
-            if (null == suffix[k]) suffix[k] = {};
-            if (null == suffix[k][q]) suffix[k][q] = {};
-            if (null == suffix[k][q][c])
-            {
-                var s1 = pattern.slice(0, k),
-                    s2 = pattern.slice(0, q) + c;
-                suffix[k][q][c] = (s1 === s2.slice(-s1.length));
-            }
-            return suffix[k][q][c];
+            var s1 = pattern.slice(0, k),
+                s2 = pattern.slice(0, q) + c;
+            return (s1 === s2.slice(-s1.length));
         };
 
         d = array_fill(0, m+1, 0).map(function() {return {};});

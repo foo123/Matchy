@@ -1,7 +1,7 @@
 <?php
 /**
 *  Matchy
-*  String searching algorithms for PHP, JavaScript, Python
+*  Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 *
 *  @version: 2.0.0
 *  https://github.com/foo123/Matchy
@@ -30,17 +30,10 @@ class Matchy
         {
             $in_pattern[mb_substr($pattern, $i, 1, 'UTF-8')] = 1;
         }
-        $suffix = array();
-        $is_suffix = function($k, $q, $c) use ($pattern, &$suffix) {
-            if (!isset($suffix[$k])) $suffix[$k] = array();
-            if (!isset($suffix[$k][$q])) $suffix[$k][$q] = array();
-            if (!isset($suffix[$k][$q][$c]))
-            {
-                $s1 = mb_substr($pattern, 0, $k, 'UTF-8');
-                $s2 = mb_substr($pattern, 0, $q, 'UTF-8') . $c;
-                $suffix[$k][$q][$c] = ($s1 === mb_substr($s2, -mb_strlen($s1, 'UTF-8'), null, 'UTF-8'));
-            }
-            return $suffix[$k][$q][$c];
+        $is_suffix = function($k, $q, $c) use ($pattern) {
+            $s1 = mb_substr($pattern, 0, $k, 'UTF-8');
+            $s2 = mb_substr($pattern, 0, $q, 'UTF-8') . $c;
+            return $s1 === mb_substr($s2, -mb_strlen($s1, 'UTF-8'), null, 'UTF-8');
         };
 
         $d = array_map(function() {return array();}, array_fill(0, $m+1, 0));
