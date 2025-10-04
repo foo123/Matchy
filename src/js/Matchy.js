@@ -554,6 +554,7 @@ NFA.prototype = {
                         if ((j2 < m2) && (i-2 === index_2[j2]))
                         {
                             v = min(v, value_2[j2] + d); // L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
+                            ++j2;
                         }
                     }
                     if (v <= k)
