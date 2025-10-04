@@ -445,9 +445,16 @@ NFA.prototype = {
             }
             else
             {
-                return [
-                    range(0, type.errors, 1),
-                    range(0, type.errors, 1)
+                var k = min(type.errors, input.length);
+                return type.transpositions ? [
+                    range(0, k, 1),
+                    range(0, k, 1),
+                    [],
+                    [],
+                    ''
+                ] : [
+                    range(0, k, 1),
+                    range(0, k, 1)
                 ];
             }
         }
@@ -489,50 +496,81 @@ NFA.prototype = {
             }
             else
             {
-                var k = type.errors,
+                if (is_number(c)) return q;
+                var transpositions = !!type.transpositions,
                     w = input,
                     n = input.length,
+                    k = min(type.errors, n),
                     index = q[0],
                     value = q[1],
+                    index_2 = null,
+                    value_2 = null,
                     new_index = [],
                     new_value = [],
                     m = index.length,
-                    last_i = -1,
-                    last_v = 0,
+                    m2 = 0,
+                    prev_i = -1,
+                    prev_v = 0,
                     next_i = -1,
-                    i, j, v, d
+                    i, j, j2,
+                    v, d, cp
                 ;
+                if (transpositions)
+                {
+                    index_2 = q[2];
+                    value_2 = q[3];
+                    cp = q[4];
+                    m2 = index_2.length;
+                    j2 = 0;
+                }
                 if ((0 < m) && (0 === index[0]) && (value[0] < k))
                 {
-                    last_i = 0;
-                    last_v = value[0] + 1;
-                    new_index.push(last_i);
-                    new_value.push(last_v);
+                    i = 0;
+                    v = value[0] + 1;
+                    prev_i = i;
+                    prev_v = v;
+                    new_index.push(i);
+                    new_value.push(v);
                 }
                 for (j=0; j<m; ++j)
                 {
                     i = index[j];
                     if (i >= n) break;
                     d = w.charAt(i) === c ? 0 : 1;
-                    v = value[j] + d;
+                    v = value[j] + d; // L[i,ii] = L[i-1,ii-1] + d
                     next_i = j+1 < m ? index[j+1] : -1;
-                    if (i === last_i)
+                    ++i;
+                    if (i-1 === prev_i)
                     {
-                        v = min(v, last_v + 1);
+                        v = min(v, prev_v + 1); // L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
                     }
-                    if (i+1 === next_i)
+                    if (i === next_i)
                     {
-                        v = min(v, value[j+1] + 1);
+                        v = min(v, value[j+1] + 1); // L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
+                    }
+                    if (transpositions && (cp === w.charAt(i-1)) && (c === w.charAt(i-2)))
+                    {
+                        while ((j2 < m2) && (index_2[j2] < i-2)) ++j2;
+                        if ((j2 < m2) && (i-2 === index_2[j2]))
+                        {
+                            v = min(v, value_2[j2] + d); // L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
+                        }
                     }
                     if (v <= k)
                     {
-                        last_i = i+1;
-                        last_v = v;
-                        new_index.push(last_i);
-                        new_value.push(last_v);
+                        prev_i = i;
+                        prev_v = v;
+                        new_index.push(i);
+                        new_value.push(v);
                     }
                 }
-                return [
+                return transpositions ? [
+                    new_index,
+                    new_value,
+                    index,
+                    value,
+                    c
+                ] : [
                     new_index,
                     new_value
                 ];
@@ -545,11 +583,11 @@ NFA.prototype = {
         }
         if ('^' === type)
         {
-            return 0 === c;
+            return is_number(c) && (0 === c);
         }
         if ('$' === type)
         {
-            return 1 === c;
+            return is_number(c) && (1 === c);
         }
         if ('!' === type)
         {
@@ -592,7 +630,7 @@ NFA.prototype = {
             }
             else
             {
-                return (0 < q[0].length) && (q[0][q[0].length-1] >= input.length);
+                return (0 < q[0].length) && (q[0][q[0].length-1] === input.length);
             }
         }
         if ('l' === type)

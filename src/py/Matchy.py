@@ -311,9 +311,16 @@ class NFA:
             if 'min' in type:
                 return (input.q0(), 0)
             else:
+                k = min(type['errors'], len(input))
                 return (
-                    list(range(0, type['errors']+1, 1)),
-                    list(range(0, type['errors']+1, 1))
+                    list(range(0, k+1, 1)),
+                    list(range(0, k+1, 1)),
+                    [],
+                    [],
+                    ''
+                ) if ('transpositions' in type) and (type['transpositions']) else (
+                    list(range(0, k+1, 1)),
+                    list(range(0, k+1, 1))
                 )
         if 'l' == type:
             return 0
@@ -337,37 +344,60 @@ class NFA:
                 if input.accept(q[0]): q = (input.q0(), q[1]+1)
                 return q
             else:
-                k = type['errors']
+                if isinstance(c, int): return q
+                transpositions = ('transpositions' in type) and (type['transpositions'])
                 w = input
                 n = len(w)
-                index, value = q
+                k = min(type['errors'], n)
+                index = q[0]
+                value = q[1]
                 new_index = []
                 new_value = []
                 m = len(index)
-                last_i = -1
-                last_v = 0
+                prev_i = -1
+                prev_v = 0
                 next_i = -1
+                if transpositions:
+                    index_2 = q[2]
+                    value_2 = q[3]
+                    cp = q[4]
+                    m2 = len(index_2)
+                    j2 = 0
                 if (0 < m) and (0 == index[0]) and (value[0] < k):
-                    last_i = 0
-                    last_v = value[0] + 1
-                    new_index.append(last_i)
-                    new_value.append(last_v)
+                    i = 0
+                    v = value[0] + 1
+                    prev_i = i
+                    prev_v = v
+                    new_index.append(i)
+                    new_value.append(v)
 
                 for j, i in enumerate(index):
                     if i >= n: break
                     d = 0 if w[i] == c else 1
-                    v = value[j] + d
+                    v = value[j] + d # L[i,ii] = L[i-1,ii-1] + d
                     next_i = index[j+1] if j+1 < m else -1
-                    if i == last_i:
-                        v = min(v, last_v + 1)
-                    if i+1 == next_i:
-                        v = min(v, value[j+1] + 1)
+                    i += 1
+                    if i-1 == prev_i:
+                        v = min(v, prev_v + 1) # L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
+                    if i == next_i:
+                        v = min(v, value[j+1] + 1) # L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
+                    if transpositions and (cp == w[i-1]) and (c == w[i-2]):
+                        while (j2 < m2) and (index_2[j2] < i-2): j2 += 1
+                        if (j2 < m2) and (i-2 == index_2[j2]):
+                            v = min(v, value_2[j2] + d) # L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
+                            j2 += 1
                     if v <= k:
-                        last_i = i+1
-                        last_v = v
-                        new_index.append(last_i)
-                        new_value.append(last_v)
+                        prev_i = i
+                        prev_v = v
+                        new_index.append(i)
+                        new_value.append(v)
                 return (
+                    new_index,
+                    new_value,
+                    index,
+                    value,
+                    c
+                ) if transpositions else (
                     new_index,
                     new_value
                 )
@@ -375,9 +405,9 @@ class NFA:
             if isinstance(c, int): return q
             return (q+1 if c == input[q] else 0) if q < len(input) else 0
         if '^' == type:
-            return 0 == c
+            return isinstance(c, int) and (0 == c)
         if '$' == type:
-            return 1 == c
+            return isinstance(c, int) and (1 == c)
         if '!' == type:
             return input.d(q, c);
         if '|' == type:
@@ -401,7 +431,7 @@ class NFA:
             if 'min' in type:
                 return (type['min'] <= q[1]) and (q[1] <= type['max'])
             else:
-                return (0 < len(q[0])) and (q[0][-1] >= len(input))
+                return (0 < len(q[0])) and (q[0][-1] == len(input))
         if 'l' == type:
             return q == len(input)
         if '^' == type:

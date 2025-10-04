@@ -430,9 +430,16 @@ class MatchyNFA
             }
             else
             {
-                return array(
-                    range(0, $type['errors'], 1),
-                    range(0, $type['errors'], 1)
+                $k = min($type['errors'], mb_strlen($input, 'UTF-8'));
+                return !empty($type['transpositions']) ? array(
+                    range(0, $k, 1),
+                    range(0, $k, 1),
+                    array(),
+                    array(),
+                    ''
+                ) : array(
+                    range(0, $k, 1),
+                    range(0, $k, 1)
                 );
             }
         }
@@ -476,49 +483,77 @@ class MatchyNFA
             }
             else
             {
-                $k = $type['errors'];
+                if (is_int($c)) return $q;
+                $transpositions = !empty($type['transpositions']);
                 $w = $input;
                 $n = mb_strlen($w, 'UTF-8');
+                $k = min($type['errors'], $n);
                 $index = $q[0];
                 $value = $q[1];
                 $new_index = array();
                 $new_value = array();
                 $m = count($index);
-                $last_i = -1;
-                $last_v = 0;
+                $prev_i = -1;
+                $prev_v = 0;
                 $next_i = -1;
+                if ($transpositions)
+                {
+                    $index_2 = $q[2];
+                    $value_2 = $q[3];
+                    $cp = $q[4];
+                    $m2 = count($index_2);
+                    $j2 = 0;
+                }
                 if ((0 < $m) && (0 === $index[0]) && ($value[0] < $k))
                 {
-                    $last_i = 0;
-                    $last_v = $value[0] + 1;
-                    $new_index[] = $last_i;
-                    $new_value[] = $last_v;
+                    $i = 0;
+                    $v = $value[0] + 1;
+                    $prev_i = $i;
+                    $prev_v = $v;
+                    $new_index[] = $i;
+                    $new_value[] = $v;
                 }
                 foreach ($index as $j => $i)
                 {
                     if ($i >= $n) break;
-                    $d = mb_substr($w, $i, 1) === $c ? 0 : 1;
-                    $v = $value[$j] + $d;
+                    $d = mb_substr($w, $i, 1, 'UTF-8') === $c ? 0 : 1;
+                    $v = $value[$j] + $d; // L[i,ii] = L[i-1,ii-1] + d
                     $next_i = $j+1 < $m ? $index[$j+1] : -1;
-                    if ($i === $last_i)
+                    ++$i;
+                    if ($i-1 === $prev_i)
                     {
-                        $v = min($v, $last_v + 1);
+                        $v = min($v, $prev_v + 1); // L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
                     }
-                    if ($i+1 === $next_i)
+                    if ($i === $next_i)
                     {
-                        $v = min($v, $value[$j+1] + 1);
+                        $v = min($v, $value[$j+1] + 1); // L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
+                    }
+                    if ($transpositions && ($cp === mb_substr($w, $i-1, 1, 'UTF-8')) && ($c === mb_substr($w, $i-2, 1, 'UTF-8')))
+                    {
+                        while (($j2 < $m2) && ($index_2[$j2] < $i-2)) ++$j2;
+                        if (($j2 < $m2) && ($i-2 === $index_2[$j2]))
+                        {
+                            $v = min($v, $value_2[$j2] + $d); // L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
+                            ++$j2;
+                        }
                     }
                     if ($v <= $k)
                     {
-                        $last_i = $i+1;
-                        $last_v = $v;
-                        $new_index[] = $last_i;
-                        $new_value[] = $last_v;
+                        $prev_i = $i;
+                        $prev_v = $v;
+                        $new_index[] = $i;
+                        $new_value[] = $v;
                     }
                 }
-                return array(
+                return $transpositions ? array(
                     $new_index,
                     $new_value,
+                    $index,
+                    $value,
+                    $c
+                ) : array(
+                    $new_index,
+                    $new_value
                 );
             }
         }
@@ -529,11 +564,11 @@ class MatchyNFA
         }
         if ('^' === $type)
         {
-            return 0 === $c;
+            return is_int($c) && (0 === $c);
         }
         if ('$' === $type)
         {
-            return 1 === $c;
+            return is_int($c) && (1 === $c);
         }
         if ('!' === $type)
         {
@@ -578,7 +613,7 @@ class MatchyNFA
             }
             else
             {
-                return (0 < count($q[0])) && ($q[0][count($q[0])-1] >= mb_strlen($input, 'UTF-8'));
+                return (0 < count($q[0])) && ($q[0][count($q[0])-1] === mb_strlen($input, 'UTF-8'));
             }
         }
         if ('l' === $type)

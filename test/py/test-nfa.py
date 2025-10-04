@@ -45,17 +45,27 @@ def test():
 
     tests = [
     {'pattern':'(a|b)*', 'nfa':NFA(NFA([NFA('a'), NFA('b')], '|'), '*')},
+    {'pattern':'^(a|b)*$', 'nfa':NFA([NFA('', '^'), NFA(NFA([NFA('a'), NFA('b')], '|'), '*'), NFA('', '$')], ',')},
     {'pattern':'aa(b+)', 'nfa':NFA([NFA('aa'), NFA(NFA('b'), '+')], ',')},
     {'pattern':'(a+)(b+)', 'nfa':NFA([NFA(NFA('a'), '+'), NFA(NFA('b'), '+')], ',')},
-    {'pattern':'bababa', 'nfa':NFA('bababa', {'errors':1})}
+    {'pattern':'bababa', 'nfa':NFA('bababa', {'errors':1})},
+    {'pattern':'bababa', 'nfa':NFA('bababa', {'errors':1,'transpositions':True})}
     ]
 
     test_case(NFA('ab'), 'ab', "ab")
-    test = tests[1]
-    test_case(test['nfa'], test['pattern'], "ababbbbaab");
-    test_case(test['nfa'], test['pattern'], "aaababbbba");
     test = tests[2]
-    test_case(test['nfa'], test['pattern'], "aaaaaaabbbbb");
+    test_case(test['nfa'], test['pattern'], "ababbbbaab")
+    test_case(test['nfa'], test['pattern'], "aaababbbba")
+    test = tests[3]
+    test_case(test['nfa'], test['pattern'], "aaaaaaabbbbb")
+    test = tests[4]
+    test_case(test['nfa'], test['pattern'], "baabba")
+    test = tests[5]
+    test_case(test['nfa'], test['pattern'], "baabba")
+    test = tests[4]
+    test_case(test['nfa'], test['pattern'], "baaabbaaba")
+    test = tests[5]
+    test_case(test['nfa'], test['pattern'], "baaabbaaba")
     for i in range(10):
         string = create_string(['a', 'b'], 10)
 
