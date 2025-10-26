@@ -31,11 +31,16 @@ function test()
     {pattern:'^(a+)(b+)$', nfa:NFA(NFA([NFA('', '^'), NFA(NFA('a'), '+'), NFA(NFA('b'), '+'), NFA('', '$')], ','), {total_errors:2})}
     ];
 
-    let test = tests[6];
-    test_case(test.nfa, test.pattern, "aaabbbbb"); // 0 errors
-    test_case(test.nfa, test.pattern, "ababbbbb"); // 1 errors
-    test_case(test.nfa, test.pattern, "abababbb"); // 2 errors
-    test_case(test.nfa, test.pattern, "abababab"); // 3 errors
+    for (let i=0; i<10; ++i)
+    {
+        let string = create_string(['a', 'b'], 10);
+
+        echo();
+        tests.forEach(test => test_case(test.nfa, test.pattern, string));
+    }
+    echo();
+    // some special test cases
+    let test;
     test_case(NFA('ab'), 'ab', "ab");
     test = tests[2];
     test_case(test.nfa, test.pattern, "ababbbbaab");
@@ -58,13 +63,13 @@ function test()
     test_case(test.nfa, test.pattern, "ababa");
     test = tests[5];
     test_case(test.nfa, test.pattern, "ababa");
-    for (let i=0; i<10; ++i)
-    {
-        let string = create_string(['a', 'b'], 10);
-
-        echo();
-        tests.forEach(test => test_case(test.nfa, test.pattern, string));
-    }
+    test = tests[6];
+    test_case(test.nfa, test.pattern, "aaabbbbb"); // 0 errors
+    test_case(test.nfa, test.pattern, "ababbbbb"); // 1 errors
+    test_case(test.nfa, test.pattern, "abababbb"); // 2 errors
+    test_case(test.nfa, test.pattern, "abababab"); // 3 errors
+    test_case(test.nfa, test.pattern, "aabababbbb"); // 2 errors
+    test_case(test.nfa, test.pattern, "baabaaabbb"); // 2 errors
 }
 
 test();
