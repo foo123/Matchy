@@ -2,11 +2,12 @@
 #  Matchy
 #  Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 #
-#  @version: 2.0.0
+#  @version: 3.0.0
 #  https://github.com/foo123/Matchy
 #
 ##
 # -*- coding: utf-8 -*-
+import math
 
 class Matchy:
     """
@@ -16,7 +17,7 @@ class Matchy:
     https://github.com/foo123/Matchy
     """
 
-    VERSION = "2.0.0"
+    VERSION = "3.0.0"
 
     def __init__(self):
         pass
@@ -39,11 +40,11 @@ class Matchy:
         d = list(map(lambda _: {}, [0] * (m+1)))
         def delta(q, c):
             if c not in in_pattern: return 0
-            if c in d[q]: return d[q][c]
-            k = min(m, q+1)
-            while (0 < k) and not is_suffix(k, q, c): k -= 1
-            d[q][c] = k
-            return k
+            if c not in d[q]:
+                k = min(m, q+1)
+                while (0 < k) and not is_suffix(k, q, c): k -= 1
+                d[q][c] = k
+            return d[q][c]
 
         # matcher
         def matcher(string, offset = 0):
@@ -297,22 +298,41 @@ def non_matcher(string, offset = 0):
 
 # non-deterministic finite automaton
 class NFA:
+    def makeFuzzy(nfa, max_errors, transpositions = False):
+        if isinstance(nfa, str):
+            # change literal string to approximate match
+            nfa = NFA(nfa, {'errors':max_errors, 'transpositions':transpositions})
+        elif isinstance(nfa, NFA):
+            if isinstance(nfa.type, dict) and ('errors' in nfa.type):
+                # leave as is
+                pass
+            elif 'l' == nfa.type:
+                # change literal match to approximate match
+                nfa = NFA(nfa.input, {'errors':max_errors, 'transpositions':transpositions})
+            elif isinstance(nfa.input, (list,tuple)):
+                # recurse
+                nfa.input = list(map(lambda input: NFA.makeFuzzy(input, max_errors, transpositions), nfa.input))
+            elif isinstance(nfa.input, NFA):
+                # recurse
+                nfa.input = NFA.makeFuzzy(nfa.input, max_errors, transpositions)
+        return nfa
+
     def __init__(self, input, type = 'l'):
         if '?' == type: type = {'min':0, 'max':1}
         if '*' == type: type = {'min':0, 'max':INF}
         if '+' == type: type = {'min':1, 'max':INF}
-        self.input = input
         self.type = type
+        self.input = NFA.makeFuzzy(input, type['total_errors'], type['transpositions'] if 'transpositions' in type else False) if isinstance(type, dict) and ('total_errors' in type) else input
 
     def q0(self):
         type = self.type
         input = self.input
         if isinstance(type, dict):
             if 'min' in type:
-                return (input.q0(), 0)
-            else:
+                q = (input.q0(), 0)
+            elif 'errors' in type:
                 k = min(type['errors'], len(input))
-                return (
+                q = (
                     list(range(0, k+1, 1)),
                     list(range(0, k+1, 1)),
                     [],
@@ -322,116 +342,157 @@ class NFA:
                     list(range(0, k+1, 1)),
                     list(range(0, k+1, 1))
                 )
+            else:
+                q = input.q0()
         if 'l' == type:
-            return 0
+            q = 0
         if '^' == type:
-            return False
+            q = False
         if '$' == type:
-            return False
+            q = False
         if '!' == type:
-            return input.q0()
+            q = input.q0()
         if '|' == type:
-            return tuple([nfa.q0() for nfa in input])
+            q = tuple([nfa.q0() for nfa in input])
         if ',' == type:
-            return (input[0].q0(), 0)
+            q = (input[0].q0(), 0)
+        return {'q':q, 'e':0} # keep track of errors
 
-    def d(self, q, c):
+    def d(self, qe, c):
         type = self.type
         input = self.input
+        q = qe['q']
+        e = qe['e']
         if isinstance(type, dict):
             if 'min' in type:
-                q = (input.d(q[0], c), q[1])
-                if input.accept(q[0]): q = (input.q0(), q[1]+1)
-                return q
-            else:
-                if isinstance(c, int): return q
-                transpositions = ('transpositions' in type) and (type['transpositions'])
-                w = input
-                n = len(w)
-                k = min(type['errors'], n)
-                index = q[0]
-                value = q[1]
-                new_index = []
-                new_value = []
-                m = len(index)
-                prev_i = -1
-                prev_v = 0
-                next_i = -1
-                if transpositions:
-                    index_2 = q[2]
-                    value_2 = q[3]
-                    cp = q[4]
-                    m2 = len(index_2)
-                    j2 = 0
-                if (0 < m) and (0 == index[0]) and (value[0] < k):
-                    i = 0
-                    v = value[0] + 1
-                    prev_i = i
-                    prev_v = v
-                    new_index.append(i)
-                    new_value.append(v)
-
-                for j, i in enumerate(index):
-                    if i >= n: break
-                    d = 0 if w[i] == c else 1
-                    v = value[j] + d # L[i,ii] = L[i-1,ii-1] + d
-                    next_i = index[j+1] if j+1 < m else -1
-                    i += 1
-                    if i-1 == prev_i:
-                        v = min(v, prev_v + 1) # L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
-                    if i == next_i:
-                        v = min(v, value[j+1] + 1) # L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
-                    if transpositions and (cp == w[i-1]) and (c == w[i-2]):
-                        while (j2 < m2) and (index_2[j2] < i-2): j2 += 1
-                        if (j2 < m2) and (i-2 == index_2[j2]):
-                            v = min(v, value_2[j2] + d) # L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
-                            j2 += 1
-                    if v <= k:
+                e0 = q[0]['e']
+                qe = input.d(q[0], c)
+                q = (qe, q[1])
+                e += q[0]['e'] - e0
+                if input.accept(qe): q = (input.q0(), q[1]+1)
+            elif 'errors' in type:
+                if isinstance(c, int):
+                    #q = q
+                    pass
+                else:
+                    transpositions = ('transpositions' in type) and (type['transpositions'])
+                    w = input
+                    n = len(w)
+                    k = min(type['errors'], n)
+                    min_e = k+1
+                    index = q[0]
+                    value = q[1]
+                    new_index = []
+                    new_value = []
+                    m = len(index)
+                    prev_i = -1
+                    prev_v = 0
+                    next_i = -1
+                    if transpositions:
+                        index_2 = q[2]
+                        value_2 = q[3]
+                        cp = q[4]
+                        m2 = len(index_2)
+                        j2 = 0
+                    if (0 < m) and (0 == index[0]) and (value[0] < k):
+                        i = 0
+                        v = value[0] + 1
                         prev_i = i
                         prev_v = v
                         new_index.append(i)
                         new_value.append(v)
-                return (
-                    new_index,
-                    new_value,
-                    index,
-                    value,
-                    c
-                ) if transpositions else (
-                    new_index,
-                    new_value
-                )
+
+                    for j, i in enumerate(index):
+                        if i >= n: break
+                        d = 0 if w[i] == c else 1
+                        v = value[j] + d # L[i,ii] = L[i-1,ii-1] + d
+                        next_i = index[j+1] if j+1 < m else -1
+                        i += 1
+                        if i-1 == prev_i:
+                            v = min(v, prev_v + 1) # L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
+                        if i == next_i:
+                            v = min(v, value[j+1] + 1) # L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
+                        if transpositions and (cp == w[i-1]) and (c == w[i-2]):
+                            while (j2 < m2) and (index_2[j2] < i-2): j2 += 1
+                            if (j2 < m2) and (i-2 == index_2[j2]):
+                                v = min(v, value_2[j2] + d) # L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
+                                j2 += 1
+                        if v <= k:
+                            min_e = min(min_e, v)
+                            prev_i = i
+                            prev_v = v
+                            new_index.append(i)
+                            new_value.append(v)
+                    q = (
+                        new_index,
+                        new_value,
+                        index,
+                        value,
+                        c
+                    ) if transpositions else (
+                        new_index,
+                        new_value
+                    )
+                    e = min_e
+            else:
+                q = input.d(q, c)
+                e = q['e']
         if 'l' == type:
-            if isinstance(c, int): return q
-            return (q+1 if c == input[q] else 0) if q < len(input) else 0
+            if isinstance(c, int):
+                # q = q
+                pass
+            else:
+                q = (q+1 if c == input[q] else 0) if q < len(input) else 0
         if '^' == type:
-            return isinstance(c, int) and (0 == c)
+            q = isinstance(c, int) and (0 == c)
+            #e = 0 if q else 1
         if '$' == type:
-            return isinstance(c, int) and (1 == c)
+            q = isinstance(c, int) and (1 == c)
+            #e = 0 if q else 1
         if '!' == type:
-            return input.d(q, c);
+            q = input.d(q, c);
+            e = q['e']
         if '|' == type:
-            return tuple([nfa.d(q[i], c) for i, nfa in enumerate(input)])
+            e0 = e
+            e = INF
+            q = tuple([nfa.d(q[i], c) for i, nfa in enumerate(input)])
+            for i, qi in enumerate(q):
+                if not input[i].reject(qi): e = min(e, qi['e'])
+            if not math.isfinite(e): e = e0+1
         if ',' == type:
             i = q[1]
             if input[i].accept(q[0]):
                 if i+1 < len(input):
-                    q0 = (input[i].d(q[0], c), i)
-                    q1 = (input[i+1].d(input[i+1].q0(), c), i+1)
-                    return q0 if input[i+1].reject(q1[0]) and not input[i].reject(q0[0]) else q1
+                    e0 = q[0]['e']
+                    q0 = input[i].d(q[0], c)
+                    q1 = input[i+1].d(input[i+1].q0(), c)
+                    if input[i+1].reject(q1) and not input[i].reject(q0):
+                        q = (q0, i)
+                        e += q0['e'] - e0
+                    else:
+                        q = (q1, i+1)
+                        e += q1['e']
                 else:
-                    return q
+                    #q = q
+                    pass
             else:
-                return (input[i].d(q[0], c), i)
+                e0 = q[0]['e']
+                q = (input[i].d(q[0], c), i)
+                e += q[0]['e'] - e0
+        return {'q':q, 'e':e} # keep track of errors
 
-    def accept(self, q):
+    def accept(self, qe):
         type = self.type
         input = self.input
+        q = qe['q']
+        e = qe['e']
         if isinstance(type, dict):
             if 'min' in type:
                 return (type['min'] <= q[1]) and (q[1] <= type['max'])
-            else:
+            elif 'errors' in type:
                 return (0 < len(q[0])) and (q[0][-1] == len(input))
+            else:
+                return (e <= type['total_errors']) and input.accept(q)
         if 'l' == type:
             return q == len(input)
         if '^' == type:
@@ -445,14 +506,18 @@ class NFA:
         if ',' == type:
             return (q[1]+1 == len(input)) and input[q[1]].accept(q[0])
 
-    def reject(self, q):
+    def reject(self, qe):
         type = self.type
         input = self.input
+        q = qe['q']
+        e = qe['e']
         if isinstance(type, dict):
             if 'min' in type:
                 return ((q[1] >= type['max']) and input.accept(q[0])) or ((q[1] < type['min']) and input.reject(q[0]))
-            else:
+            elif 'errors' in type:
                 return not q[0]
+            else:
+                return (e > type['total_errors']) or input.reject(q)
         if 'l' == type:
             return 0 == q
         if '^' == type:
@@ -466,27 +531,31 @@ class NFA:
         if ',' == type:
             return input[q[1]].reject(q[0])
 
-    def match(self, string, offset = 0, q = None):
+    def match(self, string, offset = 0, return_match = False, q = None):
         i = offset
         j = i
         n = len(string)
         if q is None: q = self.q0()
+        c = ''
         while True:
             if j >= n:
                 i += 1
                 if i >= n: break
                 j = i
                 q = self.q0()
-            if 0 == j: q = self.d(q, 0)
-            q = self.d(q, string[j])
-            if n-1 == j: q = self.d(q, 1)
+                c = string[j-1]
+            prevc = c
+            c = string[j]
+            if (0 == j) or ("\n" == prevc): q = self.d(q, 0)
+            q = self.d(q, c)
+            if (n-1 == j) or ("\n" == c): q = self.d(q, 1)
             if self.accept(q):
-                return i # matched
+                return string[i:j+1] if return_match else i # matched
             elif self.reject(q):
                 j = n # failed, try next
             else:
                 j += 1 # continue
-        return -1
+        return None if return_match else -1
 
 Matchy.NFA = NFA
 

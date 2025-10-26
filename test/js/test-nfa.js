@@ -27,11 +27,17 @@ function test()
     {pattern:'aa(b+)', nfa:NFA([NFA('aa'), NFA(NFA('b'), '+')], ',')},
     {pattern:'(a+)(b+)', nfa:NFA([NFA(NFA('a'), '+'), NFA(NFA('b'), '+')], ',')},
     {pattern:'bababa', nfa:NFA('bababa', {errors:1})},
-    {pattern:'bababa', nfa:NFA('bababa', {errors:1,transpositions:true})}
+    {pattern:'bababa', nfa:NFA('bababa', {errors:1,transpositions:true})},
+    {pattern:'^(a+)(b+)$', nfa:NFA(NFA([NFA('', '^'), NFA(NFA('a'), '+'), NFA(NFA('b'), '+'), NFA('', '$')], ','), {total_errors:2})}
     ];
 
+    let test = tests[6];
+    test_case(test.nfa, test.pattern, "aaabbbbb"); // 0 errors
+    test_case(test.nfa, test.pattern, "ababbbbb"); // 1 errors
+    test_case(test.nfa, test.pattern, "abababbb"); // 2 errors
+    test_case(test.nfa, test.pattern, "abababab"); // 3 errors
     test_case(NFA('ab'), 'ab', "ab");
-    let test = tests[2];
+    test = tests[2];
     test_case(test.nfa, test.pattern, "ababbbbaab");
     test_case(test.nfa, test.pattern, "aaababbbba");
     test = tests[3];
@@ -44,6 +50,14 @@ function test()
     test_case(test.nfa, test.pattern, "baaabbaaba");
     test = tests[5];
     test_case(test.nfa, test.pattern, "baaabbaaba");
+    test = tests[4];
+    test_case(test.nfa, test.pattern, "babab");
+    test = tests[5];
+    test_case(test.nfa, test.pattern, "babab");
+    test = tests[4];
+    test_case(test.nfa, test.pattern, "ababa");
+    test = tests[5];
+    test_case(test.nfa, test.pattern, "ababa");
     for (let i=0; i<10; ++i)
     {
         let string = create_string(['a', 'b'], 10);

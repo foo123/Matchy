@@ -3,7 +3,7 @@
 *  Matchy
 *  Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 *
-*  @version: 2.0.0
+*  @version: 3.0.0
 *  https://github.com/foo123/Matchy
 *
 **/
@@ -11,7 +11,7 @@ if (!class_exists('Matchy', false))
 {
 class Matchy
 {
-    const VERSION = "2.0.0";
+    const VERSION = "3.0.0";
 
     public function __construct()
     {
@@ -39,11 +39,13 @@ class Matchy
         $d = array_map(function() {return array();}, array_fill(0, $m+1, 0));
         $delta = function($q, $c) use (&$d, $pattern, $m, $in_pattern, &$is_suffix) {
             if (!isset($in_pattern[$c])) return 0;
-            if (isset($d[$q][$c])) return $d[$q][$c];
-            $k = min($m, $q+1);
-            while ((0 < $k) && !$is_suffix($k, $q, $c)) --$k;
-            $d[$q][$c] = $k;
-            return $k;
+            if (!isset($d[$q][$c]))
+            {
+                $k = min($m, $q+1);
+                while ((0 < $k) && !$is_suffix($k, $q, $c)) --$k;
+                $d[$q][$c] = $k;
+            }
+            return $d[$q][$c];
         };
 
         // matcher
@@ -406,16 +408,50 @@ class Matchy
 // non-deterministic finite automaton
 class MatchyNFA
 {
-    protected $input = null;
-    protected $type = null;
+    public static function makeFuzzy($nfa, $max_errors, $transpositions = false)
+    {
+        if (is_string($nfa))
+        {
+            // change literal string to approximate match
+            $nfa = new MatchyNFA($nfa, array('errors'=>$max_errors, 'transpositions'=>$transpositions));
+        }
+        elseif ($nfa instanceof MatchyNFA)
+        {
+            if ((is_array($nfa->type) && isset($nfa->type['errors'])) || ('^' === $nfa->type) || ('$' === $nfa->type))
+            {
+                // leave as is
+            }
+            elseif ('l' === $nfa->type)
+            {
+                // change literal match to approximate match
+                $nfa = new MatchyNFA($nfa->input, array('errors'=>$max_errors, 'transpositions'=>$transpositions));
+            }
+            elseif (is_array($nfa->input))
+            {
+                // recurse
+                $nfa->input = array_map(function($input) use ($max_errors, $transpositions) {
+                    return MatchyNFA::makeFuzzy($input, $max_errors, $transpositions);
+                }, $nfa->input);
+            }
+            elseif ($nfa->input instanceof MatchyNFA)
+            {
+                // recurse
+                $nfa->input = MatchyNFA::makeFuzzy($nfa->input, $max_errors, $transpositions);
+            }
+        }
+        return $nfa;
+    }
+
+    public $input = null;
+    public $type = null;
 
     public function __construct($input, $type = 'l')
     {
         if ('?' === $type) $type = array('min'=>0, 'max'=>1);
         if ('*' === $type) $type = array('min'=>0, 'max'=>INF);
         if ('+' === $type) $type = array('min'=>1, 'max'=>INF);
-        $this->input = $input;
         $this->type = $type;
+        $this->input = is_array($type) && isset($type['total_errors']) ? MatchyNFA::makeFuzzy($input, $type['total_errors'], !empty($type['transpositions'])) : $input;
     }
 
     public function q0()
@@ -426,12 +462,12 @@ class MatchyNFA
         {
             if (isset($type['min']))
             {
-                return array($input->q0(), 0);
+                $q = array($input->q0(), 0);
             }
-            else
+            elseif (isset($type['errors']))
             {
                 $k = min($type['errors'], mb_strlen($input, 'UTF-8'));
-                return !empty($type['transpositions']) ? array(
+                $q = !empty($type['transpositions']) ? array(
                     range(0, $k, 1),
                     range(0, $k, 1),
                     array(),
@@ -442,141 +478,184 @@ class MatchyNFA
                     range(0, $k, 1)
                 );
             }
+            else
+            {
+                $q = $input->q0();
+            }
         }
         if ('l' === $type)
         {
-            return 0;
+            $q = 0;
         }
         if ('^' === $type)
         {
-            return false;
+            $q = false;
         }
         if ('$' === $type)
         {
-            return false;
+            $q = false;
         }
         if ('!' === $type)
         {
-            return $input->q0();
+            $q = $input->q0();
         }
         if ('|' === $type)
         {
-            return array_map(function($nfa) {return $nfa->q0();}, $input);
+            $q = array_map(function($nfa) {
+                return $nfa->q0();
+            }, $input);
         }
         if (',' === $type)
         {
-            return array($input[0]->q0(), 0);
+            $q = array($input[0]->q0(), 0);
         }
+        return array('q'=>$q, 'e'=>0); // keep track of errors
     }
 
-    public function d($q, $c)
+    public function d($qe, $c)
     {
         $type = $this->type;
         $input = $this->input;
+        $q = $qe['q'];
+        $e = $qe['e'];
         if (is_array($type))
         {
             if (isset($type['min']))
             {
-                $q = array($input->d($q[0], $c), $q[1]);
-                if ($input->accept($q[0])) $q = array($input->q0(), $q[1]+1);
-                return $q;
+                $e0 = $q[0]['e'];
+                $qe = $input->d($q[0], $c);
+                $q = array($qe, $q[1]);
+                $e += $q[0]['e'] - $e0;
+                if ($input->accept($qe)) $q = array($input->q0(), $q[1]+1);
             }
-            else
+            elseif (isset($type['errors']))
             {
-                if (is_int($c)) return $q;
-                $transpositions = !empty($type['transpositions']);
-                $w = $input;
-                $n = mb_strlen($w, 'UTF-8');
-                $k = min($type['errors'], $n);
-                $index = $q[0];
-                $value = $q[1];
-                $new_index = array();
-                $new_value = array();
-                $m = count($index);
-                $prev_i = -1;
-                $prev_v = 0;
-                $next_i = -1;
-                if ($transpositions)
+                if (is_int($c))
                 {
-                    $index_2 = $q[2];
-                    $value_2 = $q[3];
-                    $cp = $q[4];
-                    $m2 = count($index_2);
-                    $j2 = 0;
+                    //$q = $q;
                 }
-                if ((0 < $m) && (0 === $index[0]) && ($value[0] < $k))
+                else
                 {
-                    $i = 0;
-                    $v = $value[0] + 1;
-                    $prev_i = $i;
-                    $prev_v = $v;
-                    $new_index[] = $i;
-                    $new_value[] = $v;
-                }
-                foreach ($index as $j => $i)
-                {
-                    if ($i >= $n) break;
-                    $d = mb_substr($w, $i, 1, 'UTF-8') === $c ? 0 : 1;
-                    $v = $value[$j] + $d; // L[i,ii] = L[i-1,ii-1] + d
-                    $next_i = $j+1 < $m ? $index[$j+1] : -1;
-                    ++$i;
-                    if ($i-1 === $prev_i)
+                    $transpositions = !empty($type['transpositions']);
+                    $w = $input;
+                    $n = mb_strlen($w, 'UTF-8');
+                    $k = min($type['errors'], $n);
+                    $min_e = $k+1;
+                    $index = $q[0];
+                    $value = $q[1];
+                    $new_index = array();
+                    $new_value = array();
+                    $m = count($index);
+                    $prev_i = -1;
+                    $prev_v = 0;
+                    $next_i = -1;
+                    if ($transpositions)
                     {
-                        $v = min($v, $prev_v + 1); // L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
+                        $index_2 = $q[2];
+                        $value_2 = $q[3];
+                        $cp = $q[4];
+                        $m2 = count($index_2);
+                        $j2 = 0;
                     }
-                    if ($i === $next_i)
+                    if ((0 < $m) && (0 === $index[0]) && ($value[0] < $k))
                     {
-                        $v = min($v, $value[$j+1] + 1); // L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
-                    }
-                    if ($transpositions && ($cp === mb_substr($w, $i-1, 1, 'UTF-8')) && ($c === mb_substr($w, $i-2, 1, 'UTF-8')))
-                    {
-                        while (($j2 < $m2) && ($index_2[$j2] < $i-2)) ++$j2;
-                        if (($j2 < $m2) && ($i-2 === $index_2[$j2]))
-                        {
-                            $v = min($v, $value_2[$j2] + $d); // L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
-                            ++$j2;
-                        }
-                    }
-                    if ($v <= $k)
-                    {
+                        $i = 0;
+                        $v = $value[0] + 1;
                         $prev_i = $i;
                         $prev_v = $v;
                         $new_index[] = $i;
                         $new_value[] = $v;
                     }
+                    foreach ($index as $j => $i)
+                    {
+                        if ($i >= $n) break;
+                        $d = mb_substr($w, $i, 1, 'UTF-8') === $c ? 0 : 1;
+                        $v = $value[$j] + $d; // L[i,ii] = L[i-1,ii-1] + d
+                        $next_i = $j+1 < $m ? $index[$j+1] : -1;
+                        ++$i;
+                        if ($i-1 === $prev_i)
+                        {
+                            $v = min($v, $prev_v + 1); // L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
+                        }
+                        if ($i === $next_i)
+                        {
+                            $v = min($v, $value[$j+1] + 1); // L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
+                        }
+                        if ($transpositions && ($cp === mb_substr($w, $i-1, 1, 'UTF-8')) && ($c === mb_substr($w, $i-2, 1, 'UTF-8')))
+                        {
+                            while (($j2 < $m2) && ($index_2[$j2] < $i-2)) ++$j2;
+                            if (($j2 < $m2) && ($i-2 === $index_2[$j2]))
+                            {
+                                $v = min($v, $value_2[$j2] + $d); // L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
+                                ++$j2;
+                            }
+                        }
+                        if ($v <= $k)
+                        {
+                            $min_e = min($min_e, $v);
+                            $prev_i = $i;
+                            $prev_v = $v;
+                            $new_index[] = $i;
+                            $new_value[] = $v;
+                        }
+                    }
+                    $q = $transpositions ? array(
+                        $new_index,
+                        $new_value,
+                        $index,
+                        $value,
+                        $c
+                    ) : array(
+                        $new_index,
+                        $new_value
+                    );
+                    $e = $min_e;
                 }
-                return $transpositions ? array(
-                    $new_index,
-                    $new_value,
-                    $index,
-                    $value,
-                    $c
-                ) : array(
-                    $new_index,
-                    $new_value
-                );
+            }
+            else
+            {
+                $q = $input->d($q, $c);
+                $e = $q['e'];
             }
         }
         if ('l' === $type)
         {
-            if (is_int($c)) return $q;
-            return $q < mb_strlen($input, 'UTF-8') ? ($c === mb_substr($input, $q, 1, 'UTF-8') ? $q+1 : 0) : 0;
+            if (is_int($c))
+            {
+                //$q = $q;
+            }
+            else
+            {
+                $q = $q < mb_strlen($input, 'UTF-8') ? ($c === mb_substr($input, $q, 1, 'UTF-8') ? $q+1 : 0) : 0;
+            }
         }
         if ('^' === $type)
         {
-            return is_int($c) && (0 === $c);
+            $q = is_int($c) && (0 === $c);
+            //$e = $q ? 0 : 1;
         }
         if ('$' === $type)
         {
-            return is_int($c) && (1 === $c);
+            $q = is_int($c) && (1 === $c);
+            //$e = $q ? 0 : 1;
         }
         if ('!' === $type)
         {
-            return $input->d($q, $c);
+            $q = $input->d($q, $c);
+            $e = $q['e'];
         }
         if ('|' === $type)
         {
-            return array_map(function($i) use ($input, $q, $c) {return $input[$i]->d($q[$i], $c);}, array_keys($input));
+            $e0 = $e;
+            $e = INF;
+            $q = array_map(function($i) use ($input, $q, $c) {
+                return $input[$i]->d($q[$i], $c);
+            }, array_keys($input));
+            foreach ($q as $i => $qi)
+            {
+                if (!$input[$i]->reject($qi)) $e = min($e, $qi['e']);
+            }
+            if (is_infinite($e)) $e = $e0+1;
         }
         if (',' === $type)
         {
@@ -585,35 +664,54 @@ class MatchyNFA
             {
                 if ($i+1 < count($input))
                 {
-                    $q0 = array($input[$i]->d($q[0], $c), $i);
-                    $q1 = array($input[$i+1]->d($input[$i+1]->q0(), $c), $i+1);
-                    return $input[$i+1]->reject($q1[0]) && !$input[$i]->reject($q0[0]) ? $q0 : $q1;
+                    $e0 = $q[0]['e'];
+                    $q0 = $input[$i]->d($q[0], $c);
+                    $q1 = $input[$i+1]->d($input[$i+1]->q0(), $c);
+                    if ($input[$i+1]->reject($q1) && !$input[$i]->reject($q0))
+                    {
+                        $q = array($q0, $i);
+                        $e += $q0['e'] - $e0;
+                    }
+                    else
+                    {
+                        $q = array($q1, $i+1);
+                        $e += $q1['e'];
+                    }
                 }
                 else
                 {
-                    return $q;
+                    //$q = $q;
                 }
             }
             else
             {
-                return array($input[$i]->d($q[0], $c), $i);
+                $e0 = $q[0]['e'];
+                $q = array($input[$i]->d($q[0], $c), $i);
+                $e += $q[0]['e'] - $e0;
             }
         }
+        return array('q'=>$q, 'e'=>$e); // keep track of errors
     }
 
-    public function accept($q)
+    public function accept($qe)
     {
         $type = $this->type;
         $input = $this->input;
+        $q = $qe['q'];
+        $e = $qe['e'];
         if (is_array($type))
         {
             if (isset($type['min']))
             {
                 return ($type['min'] <= $q[1]) && ($q[1] <= $type['max']);
             }
-            else
+            elseif (isset($type['errors']))
             {
                 return (0 < count($q[0])) && ($q[0][count($q[0])-1] === mb_strlen($input, 'UTF-8'));
+            }
+            else
+            {
+                return ($e <= $type['total_errors']) && $input->accept($q);
             }
         }
         if ('l' === $type)
@@ -634,7 +732,9 @@ class MatchyNFA
         }
         if ('|' === $type)
         {
-            return 0 < count(array_filter(array_keys($input), function($i) use ($input, $q) {return $input[$i]->accept($q[$i]);}));
+            return 0 < count(array_filter(array_keys($input), function($i) use ($input, $q) {
+                return $input[$i]->accept($q[$i]);
+            }));
         }
         if (',' === $type)
         {
@@ -642,19 +742,25 @@ class MatchyNFA
         }
     }
 
-    public function reject($q)
+    public function reject($qe)
     {
         $type = $this->type;
         $input = $this->input;
+        $q = $qe['q'];
+        $e = $qe['e'];
         if (is_array($type))
         {
             if (isset($type['min']))
             {
                 return (($q[1] >= $type['max']) && $input->accept($q[0])) || (($q[1] < $type['min']) && $input->reject($q[0]));
             }
-            else
+            elseif (isset($type['errors']))
             {
                 return empty($q[0]);
+            }
+            else
+            {
+                return ($e > $type['total_errors']) || $input->reject($q);
             }
         }
         if ('l' === $type)
@@ -675,7 +781,9 @@ class MatchyNFA
         }
         if ('|' === $type)
         {
-            return count($input) === count(array_filter(array_keys($input), function($i) use ($input, $q) {return $input[$i]->reject($q[$i]);}));
+            return count($input) === count(array_filter(array_keys($input), function($i) use ($input, $q) {
+                return $input[$i]->reject($q[$i]);
+            }));
         }
         if (',' === $type)
         {
@@ -683,12 +791,13 @@ class MatchyNFA
         }
     }
 
-    public function match($string, $offset = 0, $q = null)
+    public function match($string, $offset = 0, $return_match = false, $q = null)
     {
         $i = $offset;
         $j = $i;
         $n = mb_strlen($string, 'UTF-8');
         if (null === $q) $q = $this->q0();
+        $c = '';
         for (;;)
         {
             if ($j >= $n)
@@ -697,13 +806,16 @@ class MatchyNFA
                 if ($i >= $n) break;
                 $j = $i;
                 $q = $this->q0();
+                $c = mb_substr($string, $j-1, 1, 'UTF-8');
             }
-            if (0 === $j) $q = $this->d($q, 0);
-            $q = $this->d($q, mb_substr($string, $j, 1, 'UTF-8'));
-            if ($n-1 === $j) $q = $this->d($q, 1);
+            $prevc = $c;
+            $c = mb_substr($string, $j, 1, 'UTF-8');
+            if ((0 === $j) || ("\n" === $prevc)) $q = $this->d($q, 0);
+            $q = $this->d($q, $c);
+            if (($n-1 === $j) || ("\n" === $c)) $q = $this->d($q, 1);
             if ($this->accept($q))
             {
-                return $i; // matched
+                return $return_match ? mb_substr($string, $i, $j-$i+1, 'UTF-8') : $i; // matched
             }
             elseif ($this->reject($q))
             {
@@ -714,7 +826,7 @@ class MatchyNFA
                 ++$j; // continue
             }
         }
-        return -1;
+        return $return_match ? null : -1;
     }
 }
 }

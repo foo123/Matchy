@@ -2,7 +2,7 @@
 *  Matchy
 *  Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 *
-*  @version: 2.0.0
+*  @version: 3.0.0
 *  https://github.com/foo123/Matchy
 *
 **/
@@ -22,7 +22,7 @@ else if (!(name in root)) /* Browser/WebWorker/.. */
 function Matchy()
 {
 }
-Matchy.VERSION = "2.0.0";
+Matchy.VERSION = "3.0.0";
 Matchy.prototype = {
     constructor: Matchy,
 
@@ -49,11 +49,13 @@ Matchy.prototype = {
         d = array_fill(0, m+1, 0).map(function() {return {};});
         delta = function(q, c) {
             if (!isset(in_pattern, c) || (1 !== in_pattern[c])) return 0;
-            if (isset(d[q], c)) return d[q][c];
-            var k = min(m, q+1);
-            while ((0 < k) && !is_suffix(k, q, c)) --k;
-            d[q][c] = k;
-            return k;
+            if (!isset(d[q], c))
+            {
+                var k = min(m, q+1);
+                while ((0 < k) && !is_suffix(k, q, c)) --k;
+                d[q][c] = k;
+            }
+            return d[q][c];
         };
 
         // matcher
@@ -426,8 +428,40 @@ function NFA(input, type)
     if ('?' === type) type = {min:0, max:1};
     if ('*' === type) type = {min:0, max:INF};
     if ('+' === type) type = {min:1, max:INF};
-    self.input = input;
     self.type = type;
+    self.input = is_obj(type) && isset(type, 'total_errors') ? NFA.makeFuzzy(input, type['total_errors'], !!type['transpositions']) : input;
+}
+NFA.makeFuzzy = function(nfa, max_errors, transpositions) {
+    if (is_string(nfa))
+    {
+        // change literal string to approximate match
+        nfa = new NFA(nfa, {'errors':max_errors, 'transpositions':!!transpositions});
+    }
+    else if (nfa instanceof NFA)
+    {
+        if (is_obj(nfa.type) && isset(nfa.type, 'errors'))
+        {
+            // leave as is
+        }
+        else if ('l' === nfa.type)
+        {
+            // change literal match to approximate match
+            nfa = new NFA(nfa.input, {'errors':max_errors, 'transpositions':!!transpositions});
+        }
+        else if (is_array(nfa.input))
+        {
+            // recurse
+            nfa.input = nfa.input.map(function(input) {
+                return NFA.makeFuzzy(input, max_errors, transpositions);
+            });
+        }
+        else if (nfa.input instanceof NFA)
+        {
+            // recurse
+            nfa.input = NFA.makeFuzzy(nfa.input, max_errors, transpositions);
+        }
+    }
+    return nfa;
 }
 NFA.prototype = {
     constructor: NFA,
@@ -436,17 +470,20 @@ NFA.prototype = {
     type: null,
 
     q0: function() {
-        var self = this, type = self.type, input = self.input;
+        var self = this,
+            type = self.type,
+            input = self.input,
+            q;
         if (is_obj(type))
         {
             if (isset(type, 'min'))
             {
-                return [input.q0(), 0];
+                q = [input.q0(), 0];
             }
-            else
+            else if (isset(type, 'errors'))
             {
                 var k = min(type.errors, input.length);
-                return type.transpositions ? [
+                q = type.transpositions ? [
                     range(0, k, 1),
                     range(0, k, 1),
                     [],
@@ -457,181 +494,244 @@ NFA.prototype = {
                     range(0, k, 1)
                 ];
             }
+            else
+            {
+                q = input.q0();
+            }
         }
         if ('l' === type)
         {
-            return 0;
+            q = 0;
         }
         if ('^' === type)
         {
-            return false;
+            q = false;
         }
         if ('$' === type)
         {
-            return false;
+            q = false;
         }
         if ('!' === type)
         {
-            return input.q0();
+            q = input.q0();
         }
         if ('|' === type)
         {
-            return input.map(function(nfa) {return nfa.q0();});
+            q = input.map(function(nfa) {return nfa.q0();});
         }
         if (',' === type)
         {
-            return [input[0].q0(), 0];
+            q = [input[0].q0(), 0];
         }
+        return {q:q, e:0}; // keep track of errors
     },
 
-    d: function(q, c) {
-        var self = this, type = self.type, input = self.input;
+    d: function(qe, c) {
+        var self = this,
+            type = self.type,
+            input = self.input,
+            q = qe.q,
+            e = qe.e;
         if (is_obj(type))
         {
             if (isset(type, 'min'))
             {
-                q = [input.d(q[0], c), q[1]];
-                if (input.accept(q[0])) q = [input.q0(), q[1]+1];
-                return q;
+                var e0 = q[0]['e'];
+                qe = input.d(q[0], c);
+                q = [qe, q[1]];
+                e += q[0]['e'] - e0;
+                if (input.accept(qe)) q = [input.q0(), q[1]+1];
             }
-            else
+            else if (isset(type, 'errors'))
             {
-                if (is_number(c)) return q;
-                var transpositions = !!type.transpositions,
-                    w = input,
-                    n = input.length,
-                    k = min(type.errors, n),
-                    index = q[0],
-                    value = q[1],
-                    index_2 = null,
-                    value_2 = null,
-                    new_index = [],
-                    new_value = [],
-                    m = index.length,
-                    m2 = 0,
-                    prev_i = -1,
-                    prev_v = 0,
-                    next_i = -1,
-                    i, j, j2,
-                    v, d, cp
-                ;
-                if (transpositions)
+                if (is_number(c))
                 {
-                    index_2 = q[2];
-                    value_2 = q[3];
-                    cp = q[4];
-                    m2 = index_2.length;
-                    j2 = 0;
+                    // q = q
                 }
-                if ((0 < m) && (0 === index[0]) && (value[0] < k))
+                else
                 {
-                    i = 0;
-                    v = value[0] + 1;
-                    prev_i = i;
-                    prev_v = v;
-                    new_index.push(i);
-                    new_value.push(v);
-                }
-                for (j=0; j<m; ++j)
-                {
-                    i = index[j];
-                    if (i >= n) break;
-                    d = w.charAt(i) === c ? 0 : 1;
-                    v = value[j] + d; // L[i,ii] = L[i-1,ii-1] + d
-                    next_i = j+1 < m ? index[j+1] : -1;
-                    ++i;
-                    if (i-1 === prev_i)
+                    var transpositions = !!type.transpositions,
+                        w = input,
+                        n = input.length,
+                        k = min(type.errors, n),
+                        min_e = k+1,
+                        index = q[0],
+                        value = q[1],
+                        index_2 = null,
+                        value_2 = null,
+                        new_index = [],
+                        new_value = [],
+                        m = index.length,
+                        m2 = 0,
+                        prev_i = -1,
+                        prev_v = 0,
+                        next_i = -1,
+                        i, j, j2,
+                        v, d, cp
+                    ;
+                    if (transpositions)
                     {
-                        v = min(v, prev_v + 1); // L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
+                        index_2 = q[2];
+                        value_2 = q[3];
+                        cp = q[4];
+                        m2 = index_2.length;
+                        j2 = 0;
                     }
-                    if (i === next_i)
+                    if ((0 < m) && (0 === index[0]) && (value[0] < k))
                     {
-                        v = min(v, value[j+1] + 1); // L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
-                    }
-                    if (transpositions && (cp === w.charAt(i-1)) && (c === w.charAt(i-2)))
-                    {
-                        while ((j2 < m2) && (index_2[j2] < i-2)) ++j2;
-                        if ((j2 < m2) && (i-2 === index_2[j2]))
-                        {
-                            v = min(v, value_2[j2] + d); // L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
-                            ++j2;
-                        }
-                    }
-                    if (v <= k)
-                    {
+                        i = 0;
+                        v = value[0] + 1;
                         prev_i = i;
                         prev_v = v;
                         new_index.push(i);
                         new_value.push(v);
                     }
-                }
-                return transpositions ? [
-                    new_index,
-                    new_value,
-                    index,
-                    value,
-                    c
-                ] : [
-                    new_index,
-                    new_value
-                ];
-            }
-        }
-        if ('l' === type)
-        {
-            if (is_number(c)) return q;
-            return q < input.length ? (c === input.charAt(q) ? q+1 : 0) : 0;
-        }
-        if ('^' === type)
-        {
-            return is_number(c) && (0 === c);
-        }
-        if ('$' === type)
-        {
-            return is_number(c) && (1 === c);
-        }
-        if ('!' === type)
-        {
-            return input.d(q, c);
-        }
-        if ('|' === type)
-        {
-            return input.map(function(nfa, i) {return nfa.d(q[i], c);});
-        }
-        if (',' === type)
-        {
-            var i = q[1], q0, q1;
-            if (input[i].accept(q[0]))
-            {
-                if (i+1 < input.length)
-                {
-                    q0 = [input[i].d(q[0], c), i];
-                    q1 = [input[i+1].d(input[i+1].q0(), c), i+1];
-                    return input[i+1].reject(q1[0]) && !input[i].reject(q0[0]) ? q0 : q1;
-                }
-                else
-                {
-                    return q;
+                    for (j=0; j<m; ++j)
+                    {
+                        i = index[j];
+                        if (i >= n) break;
+                        d = w.charAt(i) === c ? 0 : 1;
+                        v = value[j] + d; // L[i,ii] = L[i-1,ii-1] + d
+                        next_i = j+1 < m ? index[j+1] : -1;
+                        ++i;
+                        if (i-1 === prev_i)
+                        {
+                            v = min(v, prev_v + 1); // L[i,ii] = min(L[i,ii], L[i-1,ii] + 1)
+                        }
+                        if (i === next_i)
+                        {
+                            v = min(v, value[j+1] + 1); // L[i,ii] = min(L[i,ii], L[i,ii-1] + 1)
+                        }
+                        if (transpositions && (cp === w.charAt(i-1)) && (c === w.charAt(i-2)))
+                        {
+                            while ((j2 < m2) && (index_2[j2] < i-2)) ++j2;
+                            if ((j2 < m2) && (i-2 === index_2[j2]))
+                            {
+                                v = min(v, value_2[j2] + d); // L[i,ii] = min(L[i,ii], L[i-2,ii-2] + d)
+                                ++j2;
+                            }
+                        }
+                        if (v <= k)
+                        {
+                            min_e = stdMath.min(min_e, v);
+                            prev_i = i;
+                            prev_v = v;
+                            new_index.push(i);
+                            new_value.push(v);
+                        }
+                    }
+                    q = transpositions ? [
+                        new_index,
+                        new_value,
+                        index,
+                        value,
+                        c
+                    ] : [
+                        new_index,
+                        new_value
+                    ];
+                    e = min_e;
                 }
             }
             else
             {
-                return [input[i].d(q[0], c), i];
+                q = input.d(q, c);
+                e = q['e'];
             }
         }
+        if ('l' === type)
+        {
+            if (is_number(c))
+            {
+                // q = q;
+            }
+            else
+            {
+                q = q < input.length ? (c === input.charAt(q) ? q+1 : 0) : 0;
+            }
+        }
+        if ('^' === type)
+        {
+            q = is_number(c) && (0 === c);
+            //e = q ? 0 : 1;
+        }
+        if ('$' === type)
+        {
+            q = is_number(c) && (1 === c);
+            //e = q ? 0 : 1;
+        }
+        if ('!' === type)
+        {
+            q = input.d(q, c);
+            e = q['e'];
+        }
+        if ('|' === type)
+        {
+            var e0 = e;
+            e = Infinity;
+            q = input.map(function(nfa, i) {
+                return nfa.d(q[i], c);
+            });
+            q.forEach(function(qi, i) {
+                if (!input[i].reject(qi)) e = stdMath.min(e, qi['e']);
+            });
+            if (!isFinite(e)) e = e0+1;
+        }
+        if (',' === type)
+        {
+            var i = q[1], q0, q1, e0;
+            if (input[i].accept(q[0]))
+            {
+                if (i+1 < input.length)
+                {
+                    e0 = q[0]['e'];
+                    q0 = input[i].d(q[0], c);
+                    q1 = input[i+1].d(input[i+1].q0(), c);
+                    if (input[i+1].reject(q1) && !input[i].reject(q0))
+                    {
+                        q = [q0, i];
+                        e += q0['e'] - e0;
+                    }
+                    else
+                    {
+                        q = [q1, i+1];
+                        e += q1['e'];
+                    }
+                }
+                else
+                {
+                    //q = q;
+                }
+            }
+            else
+            {
+                e0 = q[0]['e'];
+                q = [input[i].d(q[0], c), i];
+                e += q[0]['e'] - e0;
+            }
+        }
+        return {q:q, e:e}; // keep track of errors
     },
 
-    accept: function(q) {
-        var self = this, type = self.type, input = self.input;
+    accept: function(qe) {
+        var self = this,
+            type = self.type,
+            input = self.input,
+            q = qe.q,
+            e = qe.e;
         if (is_obj(type))
         {
             if (isset(type, 'min'))
             {
                 return (type.min <= q[1]) && (q[1] <= type.max);
             }
-            else
+            else if (isset(type, 'errors'))
             {
                 return (0 < q[0].length) && (q[0][q[0].length-1] === input.length);
+            }
+            else
+            {
+                return (e <= type['total_errors']) && input.accept(q);
             }
         }
         if ('l' === type)
@@ -652,7 +752,9 @@ NFA.prototype = {
         }
         if ('|' === type)
         {
-            return 0 < input.filter(function(nfa, i) {return nfa.accept(q[i]);}).length;
+            return 0 < input.filter(function(nfa, i) {
+                return nfa.accept(q[i]);
+            }).length;
         }
         if (',' === type)
         {
@@ -660,17 +762,25 @@ NFA.prototype = {
         }
     },
 
-    reject: function(q) {
-        var self = this, type = self.type, input = self.input;
+    reject: function(qe) {
+        var self = this,
+            type = self.type,
+            input = self.input,
+            q = qe.q,
+            e = qe.e;
         if (is_obj(type))
         {
             if (isset(type, 'min'))
             {
                 return ((q[1] >= type.max) && input.accept(q[0])) || ((q[1] < type.min) && input.reject(q[0]));
             }
-            else
+            else if (isset(type, 'errors'))
             {
                 return !q[0].length;
+            }
+            else
+            {
+                return (e > type['total_errors']) || input.reject(q);
             }
         }
         if ('l' === type)
@@ -691,7 +801,9 @@ NFA.prototype = {
         }
         if ('|' === type)
         {
-            return input.length === input.filter(function(nfa, i) {return nfa.reject(q[i]);}).length;
+            return input.length === input.filter(function(nfa, i) {
+                return nfa.reject(q[i]);
+            }).length;
         }
         if (',' === type)
         {
@@ -699,12 +811,14 @@ NFA.prototype = {
         }
     },
 
-    match: function(string, offset, q) {
+    match: function(string, offset, return_match, q) {
         var self = this;
         var i = offset || 0,
             j = i,
-            n = string.length;
+            n = string.length,
+            c, prevc;
         if (null == q) q = self.q0();
+        c = '';
         for (;;)
         {
             if (j >= n)
@@ -713,13 +827,16 @@ NFA.prototype = {
                 if (i > n) break;
                 j = i;
                 q = self.q0();
+                c = string.charAt(j-1);
             }
-            if (0 === j) q = self.d(q, 0);
-            q = self.d(q, string.charAt(j));
-            if (n-1 === j) q = self.d(q, 1);
+            prevc = c;
+            c = string.charAt(j);
+            if ((0 === j) || ("\n" === prevc)) q = self.d(q, 0);
+            q = self.d(q, c);
+            if ((n-1 === j) || ("\n" === c)) q = self.d(q, 1);
             if (self.accept(q))
             {
-                return i; // matched
+                return return_match ? string.slice(i, j+1) : i; // matched
             }
             else if (self.reject(q))
             {
@@ -730,7 +847,7 @@ NFA.prototype = {
                 ++j; // continue
             }
         }
-        return -1;
+        return return_match ? null : -1;
     }
 };
 Matchy.NFA = NFA;
