@@ -26,7 +26,7 @@ Matchy.VERSION = "3.0.0";
 Matchy.prototype = {
     constructor: Matchy,
 
-    fsa: function(pattern, string, offset) {
+    fsa: function(pattern, string, offset, return_match) {
         // https://en.wikipedia.org/wiki/Finite-state_machine
         // https://en.wikipedia.org/wiki/String-searching_algorithm
         // https://euroinformatica.ro/documentation/programming/!!!Algorithms_CORMEN!!!/DDU0214.html
@@ -59,7 +59,7 @@ Matchy.prototype = {
         };
 
         // matcher
-        var matcher = function(string, offset) {
+        var matcher = function(string, offset, return_match) {
             var n = string.length;
             if (null == offset) offset = 0;
             if (0 > offset) offset += n;
@@ -69,15 +69,15 @@ Matchy.prototype = {
                 {
                     c = string.charAt(i);
                     q = delta(q, c);
-                    if (m === q) return i-m+1; // matched
+                    if (m === q) return return_match ? pattern : (i-m+1); // matched
                 }
             }
-            return -1;
+            return return_match ? null : -1;
         };
-        return null == string ? matcher : matcher(string, offset);
+        return null == string ? matcher : matcher(string, offset, return_match);
     },
 
-    rabinkarp: function(pattern, string, offset) {
+    rabinkarp: function(pattern, string, offset, return_match) {
         // https://en.wikipedia.org/wiki/Rabin%E2%80%93Karp_algorithm
         // http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=BA184C94C16CB23D5FA7329E257E3713?doi=10.1.1.86.9502&rep=rep1&type=pdf
 
@@ -85,7 +85,7 @@ Matchy.prototype = {
         var Q = 3989; // prime number so that 10*Q can fit in one WORD (i.e 2^16 bits)
 
         // matcher
-        var matcher = function(string, offset) {
+        var matcher = function(string, offset, return_match) {
             var n = string.length;
             if (null == offset) offset = 0;
             if (0 > offset) offset += n;
@@ -121,7 +121,7 @@ Matchy.prototype = {
                     // worst case: many hash collisions -> "naive" matching
                     if (pq === sq)
                     {
-                        if (string.slice(i, i+m) === pattern) return i; // matched
+                        if (string.slice(i, i+m) === pattern) return return_match ? pattern : i; // matched
                     }
                     // update text hash for next char using Horner algorithm
                     if (i < n)
@@ -131,12 +131,12 @@ Matchy.prototype = {
                     }
                 }
             }
-            return -1;
+            return return_match ? null : -1;
         };
-        return null == string ? matcher : matcher(string, offset);
+        return null == string ? matcher : matcher(string, offset, return_match);
     },
 
-    knuthmorrispratt: function(pattern, string, offset) {
+    knuthmorrispratt: function(pattern, string, offset, return_match) {
         // https://en.wikipedia.org/wiki/Knuth%E2%80%93Morris%E2%80%93Pratt_algorithm
         // http://www.eecs.ucf.edu/~shzhang/Combio09/kmp.pdf
 
@@ -163,7 +163,7 @@ Matchy.prototype = {
         }
 
         // matcher
-        var matcher = function(string, offset) {
+        var matcher = function(string, offset, return_match) {
             var n = string.length;
             if (null == offset) offset = 0;
             if (0 > offset) offset += n;
@@ -176,7 +176,7 @@ Matchy.prototype = {
                     {
                         ++i;
                         ++k;
-                        if (k === m) return i - k; // matched
+                        if (k === m) return return_match ? pattern : (i - k); // matched
                     }
                     else
                     {
@@ -189,12 +189,12 @@ Matchy.prototype = {
                     }
                 }
             }
-            return -1;
+            return return_match ? null : -1;
         };
-        return null == string ? matcher : matcher(string, offset);
+        return null == string ? matcher : matcher(string, offset, return_match);
     },
 
-    boyermoore: function(pattern, string, offset) {
+    boyermoore: function(pattern, string, offset, return_match) {
         // https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm
         // http://www.cs.utexas.edu/~moore/publications/fstrpos.pdf
 
@@ -228,7 +228,7 @@ Matchy.prototype = {
         }
 
         // matcher
-        var matcher = function(string, offset) {
+        var matcher = function(string, offset, return_match) {
             var n = string.length;
             if (null == offset) offset = 0;
             if (0 > offset) offset += n;
@@ -244,7 +244,7 @@ Matchy.prototype = {
                     }
                     if (0 > j)
                     {
-                        return i; // matched
+                        return return_match ? pattern : i; // matched
                     }
                     else
                     {
@@ -252,12 +252,12 @@ Matchy.prototype = {
                     }
                 }
             }
-            return -1;
+            return return_match ? null : -1;
         };
-        return null == string ? matcher : matcher(string, offset);
+        return null == string ? matcher : matcher(string, offset, return_match);
     },
 
-    twoway: function(pattern, string, offset) {
+    twoway: function(pattern, string, offset, return_match) {
         // https://en.wikipedia.org/wiki/Two-way_string-matching_algorithm
         // http://monge.univ-mlv.fr/~mac/Articles-PDF/CP-1991-jacm.pdf
 
@@ -326,7 +326,7 @@ Matchy.prototype = {
         var small_period = (2*l < m) && (pattern.slice(0, l) === pattern.slice(l, l+p).slice(-l));
 
         // matcher
-        var matcher = function(string, offset) {
+        var matcher = function(string, offset, return_match) {
             var n = string.length;
             if (null == offset) offset = 0;
             if (0 > offset) offset += n;
@@ -359,7 +359,7 @@ Matchy.prototype = {
                             {
                                 --j;
                             }
-                            if (j <= s) return pos; // matched
+                            if (j <= s) return return_match ? pattern : pos; // matched
                             pos += p;
                             s = m-p;
                         }
@@ -387,36 +387,36 @@ Matchy.prototype = {
                             {
                                 --j;
                             }
-                            if (0 === j) return pos; // matched
+                            if (0 === j) return return_match ? pattern : pos; // matched
                             pos += q;
                         }
                     }
                 }
             }
-            return -1;
+            return return_match ? null : -1;
         };
-        return null == string ? matcher : matcher(string, offset);
+        return null == string ? matcher : matcher(string, offset, return_match);
     },
 
-    commentzwalter: function(pattern, string, offset) {
+    commentzwalter: function(pattern, string, offset, return_match) {
         // https://en.wikipedia.org/wiki/Commentz-Walter_algorithm
-        return null == string ? non_matcher : non_matcher(string, offset); // TODO
+        return null == string ? non_matcher : non_matcher(string, offset, return_match); // TODO
     },
 
-    baezayatesgonnet: function(pattern, string, offset) {
+    baezayatesgonnet: function(pattern, string, offset, return_match) {
         // https://en.wikipedia.org/wiki/Bitap_algorithm
-        return null == string ? non_matcher : non_matcher(string, offset); // TODO
+        return null == string ? non_matcher : non_matcher(string, offset, return_match); // TODO
     },
 
-    ahocorasick: function(pattern, string, offset) {
+    ahocorasick: function(pattern, string, offset, return_match) {
         // https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm
-        return null == string ? non_matcher : non_matcher(string, offset); // TODO
+        return null == string ? non_matcher : non_matcher(string, offset, return_match); // TODO
     }
 };
 
-function non_matcher(string, offset)
+function non_matcher(string, offset, return_match)
 {
-    return -1;
+    return return_match ? null : -1;
 }
 
 // non-deterministic finite automaton
@@ -521,7 +521,7 @@ NFA.prototype = {
         }
         if (',' === type)
         {
-            q = [input[0].q0(), 0];
+            q = [[input[0].q0(), 0, 0]];
         }
         return {q:q, e:0}; // keep track of errors
     },
@@ -679,34 +679,51 @@ NFA.prototype = {
         }
         if (',' === type)
         {
-            var i = q[1], q0, q1, e0 = q[0]['e'];
-            if (input[i].accept(q[0]))
-            {
-                if (i+1 < input.length)
+            var n = input.length,
+                last_i = 0,
+                qq = q;
+            q = [];
+            qq.forEach(function(qi) {
+                var i = qi[1],
+                    e0 = qi[0]['e'];
+                if (input[i].accept(qi[0]))
                 {
-                    q0 = input[i].d(q[0], c);
-                    q1 = input[i+1].d(input[i+1].q0(), c);
-                    if ((!input[i].reject(q0)) && (input[i+1].reject(q1) || (q0['e'] - e0 < q1['e'])))
+                    if (i+1 < n)
                     {
-                        q = [q0, i];
-                        e += q0['e'] - e0;
+                        var q0 = input[i].d(qi[0], c),
+                            q1 = input[i+1].d(input[i+1].q0(), c);
+                        if (!input[i].reject(q0))
+                        {
+                            qi = [q0, i, qi[2]];
+                            q.push(qi);
+                        }
+                        if (!input[i+1].reject(q1))
+                        {
+                            ++i;
+                            qi = [q1, i, qi[2]+e0];
+                            q.push(qi);
+                        }
                     }
                     else
                     {
-                        q = [q1, i+1];
-                        e += q1['e'];
+                        q.push(qi);
                     }
                 }
                 else
                 {
-                    //q = q;
+                    qi = [input[i].d(qi[0], c), i, qi[2]];
+                    q.push(qi);
                 }
-            }
-            else
-            {
-                q = [input[i].d(q[0], c), i];
-                e += q[0]['e'] - e0;
-            }
+                if (i > last_i)
+                {
+                    last_i = i;
+                    e = qi[0]['e'] + qi[2];
+                }
+                else if (i === last_i)
+                {
+                    e = stdMath.min(e, qi[0]['e'] + qi[2]);
+                }
+            });
         }
         return {q:q, e:e}; // keep track of errors
     },
@@ -729,7 +746,7 @@ NFA.prototype = {
             }
             else
             {
-                return (e <= type['total_errors']) && input.accept(q);
+                return input.accept_with_errors(q, type['total_errors']);
             }
         }
         if ('l' === type)
@@ -756,7 +773,10 @@ NFA.prototype = {
         }
         if (',' === type)
         {
-            return (q[1]+1 === input.length) && input[q[1]].accept(q[0]);
+            var n = input.length;
+            return 0 < q.filter(function(qi) {
+                return (qi[1]+1 === n) && input[qi[1]].accept(qi[0]);
+            }).length;
         }
     },
 
@@ -778,7 +798,7 @@ NFA.prototype = {
             }
             else
             {
-                return (e > type['total_errors']) || input.reject(q);
+                return input.reject_with_errors(q, type['total_errors']);
             }
         }
         if ('l' === type)
@@ -805,7 +825,50 @@ NFA.prototype = {
         }
         if (',' === type)
         {
-            return input[q[1]].reject(q[0]);
+            return q.length === q.filter(function(qi) {
+                return input[qi[1]].reject(qi[0]);
+            }).length;
+        }
+    },
+
+    accept_with_errors: function(qe, max_errors) {
+        var self = this, type, input, q, e;
+        if (!self.accept(qe)) return false;
+        if (null == max_errors) return true;
+        type = self.type;
+        input = self.input;
+        q = qe['q'];
+        e = qe['e'];
+        if (is_obj(type) || (',' !== type))
+        {
+            return e <= max_errors;
+        }
+        if (',' === type)
+        {
+            var n = input.length;
+            return 0 < q.filter(function(qi) {
+                return (qi[1]+1 === n) && (qi[0]['e'] + qi[2] <= max_errors) && input[qi[1]].accept(qi[0]);
+            }).length;
+        }
+    },
+
+    reject_with_errors: function(qe, max_errors) {
+        var self = this, type, input, q, e;
+        if (self.reject(qe)) return true;
+        if (null == max_errors) return false;
+        type = self.type;
+        input = self.input;
+        q = qe['q'];
+        e = qe['e'];
+        if (is_obj(type) || (',' !== type))
+        {
+            return e > max_errors;
+        }
+        if (',' === type)
+        {
+            return q.length === q.filter(function(qi) {
+                return (qi[0]['e'] + qi[2] > max_errors) || input[qi[1]].reject(qi[0]);
+            }).length;
         }
     },
 

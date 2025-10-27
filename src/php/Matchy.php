@@ -17,7 +17,7 @@ class Matchy
     {
     }
 
-    public function fsa($pattern, $string = null, $offset = 0)
+    public function fsa($pattern, $string = null, $offset = 0, $return_match = false)
     {
         // https://en.wikipedia.org/wiki/Finite-state_machine
         // https://en.wikipedia.org/wiki/String-searching_algorithm
@@ -49,7 +49,7 @@ class Matchy
         };
 
         // matcher
-        $matcher = function($string, $offset = 0) use ($m, &$delta) {
+        $matcher = function($string, $offset = 0, $return_match = false) use ($pattern, $m, &$delta) {
             $n = mb_strlen($string, 'UTF-8');
             if (0 > $offset) $offset += $n;
             if ((0 < $n) && (0 < $m) && ($n >= $offset+$m))
@@ -58,15 +58,15 @@ class Matchy
                 {
                     $c = mb_substr($string, $i, 1, 'UTF-8');
                     $q = $delta($q, $c);
-                    if ($m === $q) return $i-$m+1; // matched
+                    if ($m === $q) return $return_match ? $pattern : ($i-$m+1); // matched
                 }
             }
-            return -1;
+            return $return_match ? null : -1;
         };
-        return null === $string ? $matcher : $matcher($string, $offset);
+        return null === $string ? $matcher : $matcher($string, $offset, $return_match);
     }
 
-    public function rabinkarp($pattern, $string = null, $offset = 0)
+    public function rabinkarp($pattern, $string = null, $offset = 0, $return_match = false)
     {
         // https://en.wikipedia.org/wiki/Rabin%E2%80%93Karp_algorithm
         // http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=BA184C94C16CB23D5FA7329E257E3713?doi=10.1.1.86.9502&rep=rep1&type=pdf
@@ -75,7 +75,7 @@ class Matchy
         $Q = 3989; // prime number so that 10*Q can fit in one WORD (i.e 2^16 bits)
 
         // matcher
-        $matcher = function($string, $offset = 0) use ($pattern, $m, $Q) {
+        $matcher = function($string, $offset = 0, $return_match = false) use ($pattern, $m, $Q) {
             $n = mb_strlen($string, 'UTF-8');
             if (0 > $offset) $offset += $n;
             if ((0 < $n) && (0 < $m) && ($n >= $offset+$m))
@@ -108,7 +108,7 @@ class Matchy
                     // worst case: many hash collisions -> "naive" matching
                     if ($pq === $sq)
                     {
-                        if (mb_substr($string, $i, $m, 'UTF-8') === $pattern) return $i; // matched
+                        if (mb_substr($string, $i, $m, 'UTF-8') === $pattern) return $return_match ? $pattern : $i; // matched
                     }
                     // update text hash for next char using Horner algorithm
                     if ($i < $n)
@@ -118,12 +118,12 @@ class Matchy
                     }
                 }
             }
-            return -1;
+            return $return_match ? null : -1;
         };
-        return null === $string ? $matcher : $matcher($string, $offset);
+        return null === $string ? $matcher : $matcher($string, $offset, $return_match);
     }
 
-    public function knuthmorrispratt($pattern, $string = null, $offset = 0)
+    public function knuthmorrispratt($pattern, $string = null, $offset = 0, $return_match = false)
     {
         // https://en.wikipedia.org/wiki/Knuth%E2%80%93Morris%E2%80%93Pratt_algorithm
         // http://www.eecs.ucf.edu/~shzhang/Combio09/kmp.pdf
@@ -151,7 +151,7 @@ class Matchy
         }
 
         // matcher
-        $matcher = function($string, $offset = 0) use ($pattern, $m, $T) {
+        $matcher = function($string, $offset = 0, $return_match = false) use ($pattern, $m, $T) {
             $n = mb_strlen($string, 'UTF-8');
             if (0 > $offset) $offset += $n;
             if ((0 < $n) && (0 < $m) && ($n >= $offset+$m))
@@ -164,7 +164,7 @@ class Matchy
                     {
                         ++$i;
                         ++$k;
-                        if ($k === $m) return $i - $k; // matched
+                        if ($k === $m) return $return_match ? $pattern : ($i - $k); // matched
                     }
                     else
                     {
@@ -177,12 +177,12 @@ class Matchy
                     }
                 }
             }
-            return -1;
+            return $return_match ? null : -1;
         };
-        return null === $string ? $matcher : $matcher($string, $offset);
+        return null === $string ? $matcher : $matcher($string, $offset, $return_match);
     }
 
-    public function boyermoore($pattern, $string = null, $offset = 0)
+    public function boyermoore($pattern, $string = null, $offset = 0, $return_match = false)
     {
         // https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm
         // http://www.cs.utexas.edu/~moore/publications/fstrpos.pdf
@@ -216,7 +216,7 @@ class Matchy
         }
 
         // matcher
-        $matcher = function($string, $offset = 0) use ($pattern, $m, $shift) {
+        $matcher = function($string, $offset = 0, $return_match = false) use ($pattern, $m, $shift) {
             $n = mb_strlen($string, 'UTF-8');
             if (0 > $offset) $offset += $n;
             if ((0 < $n) && (0 < $m) && ($n >= $offset+$m))
@@ -231,7 +231,7 @@ class Matchy
                     }
                     if (0 > $j)
                     {
-                        return $i; // matched
+                        return $return_match ? $pattern : $i; // matched
                     }
                     else
                     {
@@ -239,12 +239,12 @@ class Matchy
                     }
                 }
             }
-            return -1;
+            return $return_match ? null : -1;
         };
-        return null === $string ? $matcher : $matcher($string, $offset);
+        return null === $string ? $matcher : $matcher($string, $offset, $return_match);
     }
 
-    public function twoway($pattern, $string = null, $offset = 0)
+    public function twoway($pattern, $string = null, $offset = 0, $return_match = false)
     {
         // https://en.wikipedia.org/wiki/Two-way_string-matching_algorithm
         // http://monge.univ-mlv.fr/~mac/Articles-PDF/CP-1991-jacm.pdf
@@ -309,7 +309,7 @@ class Matchy
         $small_period = (2*$l < $m) && (mb_substr($pattern, 0, $l, 'UTF-8') === mb_substr(mb_substr($pattern, $l, $p, 'UTF-8'), -$l, null, 'UTF-8'));
 
         // matcher
-        $matcher = function($string, $offset = 0) use ($pattern, $m, $small_period, $l, $p) {
+        $matcher = function($string, $offset = 0, $return_match = false) use ($pattern, $m, $small_period, $l, $p) {
             $n = mb_strlen($string, 'UTF-8');
             if (0 > $offset) $offset += $n;
             if ((0 < $n) && (0 < $m) && ($n >= $offset+$m))
@@ -339,7 +339,7 @@ class Matchy
                             {
                                 --$j;
                             }
-                            if ($j <= $s) return $pos; // matched
+                            if ($j <= $s) return $return_match ? $pattern : $pos; // matched
                             $pos += $p;
                             $s = $m-$p;
                         }
@@ -367,42 +367,42 @@ class Matchy
                             {
                                 --$j;
                             }
-                            if (0 === $j) return $pos; // matched
+                            if (0 === $j) return $return_match ? $pattern : $pos; // matched
                             $pos += $q;
                         }
                     }
                 }
             }
-            return -1;
+            return $return_match ? null : -1;
         };
-        return null === $string ? $matcher : $matcher($string, $offset);
+        return null === $string ? $matcher : $matcher($string, $offset, $return_match);
     }
 
-    public function commentzwalter($pattern, $string = null, $offset = 0)
+    public function commentzwalter($pattern, $string = null, $offset = 0, $return_match = false)
     {
         // https://en.wikipedia.org/wiki/Commentz-Walter_algorithm
-        $non_matcher = function($string, $offset = 0) {
-            return -1;
+        $non_matcher = function($string, $offset = 0, $return_match = false) {
+            return $return_match ? null : -1;
         };
-        return null === $string ? $non_matcher : $non_matcher($string, $offset); // TODO
+        return null === $string ? $non_matcher : $non_matcher($string, $offset, $return_match); // TODO
     }
 
-    public function baezayatesgonnet($pattern, $string = null, $offset = 0)
+    public function baezayatesgonnet($pattern, $string = null, $offset = 0, $return_match = false)
     {
         // https://en.wikipedia.org/wiki/Bitap_algorithm
-        $non_matcher = function($string, $offset = 0) {
-            return -1;
+        $non_matcher = function($string, $offset = 0, $return_match = false) {
+            return $return_match ? null : -1;
         };
-        return null === $string ? $non_matcher : $non_matcher($string, $offset); // TODO
+        return null === $string ? $non_matcher : $non_matcher($string, $offset, $return_match); // TODO
     }
 
-    public function ahocorasick($pattern, $string = null, $offset = 0)
+    public function ahocorasick($pattern, $string = null, $offset = 0, $return_match = false)
     {
         // https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm
-        $non_matcher = function($string, $offset = 0) {
-            return -1;
+        $non_matcher = function($string, $offset = 0, $return_match = false) {
+            return $return_match ? null : -1;
         };
-        return null === $string ? $non_matcher : $non_matcher($string, $offset); // TODO
+        return null === $string ? $non_matcher : $non_matcher($string, $offset, $return_match); // TODO
     }
 }
 // non-deterministic finite automaton
@@ -417,7 +417,7 @@ class MatchyNFA
         }
         elseif ($nfa instanceof MatchyNFA)
         {
-            if ((is_array($nfa->type) && isset($nfa->type['errors'])) || ('^' === $nfa->type) || ('$' === $nfa->type))
+            if (is_array($nfa->type) && isset($nfa->type['errors']))
             {
                 // leave as is
             }
@@ -507,7 +507,7 @@ class MatchyNFA
         }
         if (',' === $type)
         {
-            $q = array($input[0]->q0(), 0);
+            $q = array(array($input[0]->q0(), 0, 0));
         }
         return array('q'=>$q, 'e'=>0); // keep track of errors
     }
@@ -655,38 +655,55 @@ class MatchyNFA
             {
                 if (!$input[$i]->reject($qi)) $e = min($e, $qi['e']);
             }
-            if (is_infinite($e)) $e = $e0+1;
+            if (!is_finite($e)) $e = $e0+1;
         }
         if (',' === $type)
         {
-            $i = $q[1];
-            $e0 = $q[0]['e'];
-            if ($input[$i]->accept($q[0]))
+            $n = count($input);
+            $last_i = 0;
+            $qq = $q;
+            $q = array();
+            foreach ($qq as $qi)
             {
-                if ($i+1 < count($input))
+                $i = $qi[1];
+                $e0 = $qi[0]['e'];
+                if ($input[$i]->accept($qi[0]))
                 {
-                    $q0 = $input[$i]->d($q[0], $c);
-                    $q1 = $input[$i+1]->d($input[$i+1]->q0(), $c);
-                    if ((!$input[$i]->reject($q0)) && ($input[$i+1]->reject($q1) || ($q0['e'] - $e0 < $q1['e'])))
+                    if ($i+1 < $n)
                     {
-                        $q = array($q0, $i);
-                        $e += $q0['e'] - $e0;
+                        $q0 = $input[$i]->d($qi[0], $c);
+                        $q1 = $input[$i+1]->d($input[$i+1]->q0(), $c);
+                        if (!$input[$i]->reject($q0))
+                        {
+                            $qi = array($q0, $i, $qi[2]);
+                            $q[] = $qi;
+                        }
+                        if (!$input[$i+1]->reject($q1))
+                        {
+                            ++$i;
+                            $qi = array($q1, $i, $qi[2]+$e0);
+                            $q[] = $qi;
+                        }
                     }
                     else
                     {
-                        $q = array($q1, $i+1);
-                        $e += $q1['e'];
+                        $q[] = $qi;
                     }
                 }
                 else
                 {
-                    //$q = $q;
+                    $qi = array($input[$i]->d($qi[0], $c), $i, $qi[2]);
+                    $q[] = $qi;
                 }
-            }
-            else
-            {
-                $q = array($input[$i]->d($q[0], $c), $i);
-                $e += $q[0]['e'] - $e0;
+                if ($i > $last_i)
+                {
+                    $last_i = $i;
+                    $e = $qi[0]['e'] + $qi[2];
+                }
+                elseif ($i === $last_i)
+                {
+                    $e = min($e, $qi[0]['e'] + $qi[2]);
+                }
             }
         }
         return array('q'=>$q, 'e'=>$e); // keep track of errors
@@ -710,7 +727,7 @@ class MatchyNFA
             }
             else
             {
-                return ($e <= $type['total_errors']) && $input->accept($q);
+                return $input->accept_with_errors($q, $type['total_errors']);
             }
         }
         if ('l' === $type)
@@ -737,7 +754,10 @@ class MatchyNFA
         }
         if (',' === $type)
         {
-            return ($q[1]+1 === count($input)) && $input[$q[1]]->accept($q[0]);
+            $n = count($input);
+            return 0 < count(array_filter($q, function($qi) use ($n, $input) {
+                return ($qi[1]+1 === $n) && $input[$qi[1]]->accept($qi[0]);
+            }));
         }
     }
 
@@ -759,7 +779,7 @@ class MatchyNFA
             }
             else
             {
-                return ($e > $type['total_errors']) || $input->reject($q);
+                return $input->reject_with_errors($q, $type['total_errors']);
             }
         }
         if ('l' === $type)
@@ -786,7 +806,50 @@ class MatchyNFA
         }
         if (',' === $type)
         {
-            return $input[$q[1]]->reject($q[0]);
+            return count($q) === count(array_filter($q, function($qi) use ($input) {
+                return $input[$qi[1]]->reject($qi[0]);
+            }));
+        }
+    }
+
+    public function accept_with_errors($qe, $max_errors = null)
+    {
+        if (!$this->accept($qe)) return false;
+        if (null === $max_errors) return true;
+        $type = $this->type;
+        $input = $this->input;
+        $q = $qe['q'];
+        $e = $qe['e'];
+        if (is_array($type) || (',' !== $type))
+        {
+            return $e <= $max_errors;
+        }
+        if (',' === $type)
+        {
+            $n = count($input);
+            return 0 < count(array_filter($q, function($qi) use ($n, $input, $max_errors) {
+                return ($qi[1]+1 === $n) && ($qi[0]['e'] + $qi[2] <= $max_errors) && $input[$qi[1]]->accept($qi[0]);
+            }));
+        }
+    }
+
+    public function reject_with_errors($qe, $max_errors = null)
+    {
+        if ($this->reject($qe)) return true;
+        if (null === $max_errors) return false;
+        $type = $this->type;
+        $input = $this->input;
+        $q = $qe['q'];
+        $e = $qe['e'];
+        if (is_array($type) || (',' !== $type))
+        {
+            return $e > $max_errors;
+        }
+        if (',' === $type)
+        {
+            return count($q) === count(array_filter($q, function($qi) use ($input, $max_errors) {
+                return ($qi[0]['e'] + $qi[2] > $max_errors) || $input[$qi[1]]->reject($qi[0]);
+            }));
         }
     }
 

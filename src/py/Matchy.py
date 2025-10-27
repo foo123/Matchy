@@ -22,7 +22,7 @@ class Matchy:
     def __init__(self):
         pass
 
-    def fsa(self, pattern, string = None, offset = 0):
+    def fsa(self, pattern, string = None, offset = 0, return_match = False):
         # https://en.wikipedia.org/wiki/Finite-state_machine
         # https://en.wikipedia.org/wiki/String-searching_algorithm
         # https://euroinformatica.ro/documentation/programming/!!!Algorithms_CORMEN!!!/DDU0214.html
@@ -47,7 +47,7 @@ class Matchy:
             return d[q][c]
 
         # matcher
-        def matcher(string, offset = 0):
+        def matcher(string, offset = 0, return_match = False):
             n = len(string)
             if 0 > offset: offset += n
             if (0 < n) and (0 < m) and (n >= offset+m):
@@ -55,12 +55,12 @@ class Matchy:
                 for i in range(offset, n):
                     c = string[i]
                     q = delta(q, c)
-                    if m == q: return i-m+1 # matched
-            return -1
+                    if m == q: return pattern if return_match else (i-m+1) # matched
+            return None if return_match else -1
 
-        return matcher if string is None else matcher(string, offset)
+        return matcher if string is None else matcher(string, offset, return_match)
 
-    def rabinkarp(self, pattern, string = None, offset = 0):
+    def rabinkarp(self, pattern, string = None, offset = 0, return_match = False):
         # https://en.wikipedia.org/wiki/Rabin%E2%80%93Karp_algorithm
         # http://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=BA184C94C16CB23D5FA7329E257E3713?doi=10.1.1.86.9502&rep=rep1&type=pdf
 
@@ -68,7 +68,7 @@ class Matchy:
         Q = 3989 # prime number so that 10*Q can fit in one WORD (i.e 2^16 bits)
 
         # matcher
-        def matcher(string, offset = 0):
+        def matcher(string, offset = 0, return_match = False):
             n = len(string)
             if 0 > offset: offset += n
             if (0 < n) and (0 < m) and (n >= offset+m):
@@ -97,16 +97,16 @@ class Matchy:
                     # pq, sq, D-base arithmetic code, used as a quick "hash" test
                     # worst case: many hash collisions -> "naive" matching
                     if pq == sq:
-                        if string[i:i+m] == pattern: return i # matched
+                        if string[i:i+m] == pattern: return pattern if return_match else i # matched
                     # update text hash for next char using Horner algorithm
                     if i < n:
                         sq = (D*(sq - h*alphabet[string[i]]) + alphabet[string[i+m]]) % Q
                         if 0 > sq: sq += Q
-            return -1
+            return None if return_match else -1
 
-        return matcher if string is None else matcher(string, offset)
+        return matcher if string is None else matcher(string, offset, return_match)
 
-    def knuthmorrispratt(self, pattern, string = None, offset = 0):
+    def knuthmorrispratt(self, pattern, string = None, offset = 0, return_match = False):
         # https://en.wikipedia.org/wiki/Knuth%E2%80%93Morris%E2%80%93Pratt_algorithm
         # http://www.eecs.ucf.edu/~shzhang/Combio09/kmp.pdf
 
@@ -127,7 +127,7 @@ class Matchy:
             i += 1
 
         # matcher
-        def matcher(string, offset = 0):
+        def matcher(string, offset = 0, return_match = False):
             n = len(string)
             if 0 > offset: offset += n
             if (0 < n) and (0 < m) and (n >= offset+m):
@@ -137,17 +137,17 @@ class Matchy:
                     if pattern[k] == string[i]:
                         i += 1
                         k += 1
-                        if k == m: return i - k # matched
+                        if k == m: return pattern if return_match else (i - k) # matched
                     else:
                         k = T[k]
                         if k < 0:
                             i += 1
                             k += 1
-            return -1
+            return None if return_match else -1
 
-        return matcher if string is None else matcher(string, offset)
+        return matcher if string is None else matcher(string, offset, return_match)
 
-    def boyermoore(self, pattern, string = None, offset = 0):
+    def boyermoore(self, pattern, string = None, offset = 0, return_match = False):
         # https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm
         # http://www.cs.utexas.edu/~moore/publications/fstrpos.pdf
 
@@ -172,7 +172,7 @@ class Matchy:
                 if i == j: j = suffix[j]
 
         # matcher
-        def matcher(string, offset = 0):
+        def matcher(string, offset = 0, return_match = False):
             n = len(string)
             if 0 > offset: offset += n
             if (0 < n) and (0 < m) and (n >= offset+m):
@@ -182,14 +182,14 @@ class Matchy:
                     while (0 <= j) and (pattern[j] == string[i+j]):
                         j -= 1
                     if 0 > j:
-                        return i # matched
+                        return pattern if return_match else i # matched
                     else:
                         i += shift[j+1]
-            return -1
+            return None if return_match else -1
 
-        return matcher if string is None else matcher(string, offset)
+        return matcher if string is None else matcher(string, offset, return_match)
 
-    def twoway(self, pattern, string = None, offset = 0):
+    def twoway(self, pattern, string = None, offset = 0, return_match = False):
         # https://en.wikipedia.org/wiki/Two-way_string-matching_algorithm
         # http://monge.univ-mlv.fr/~mac/Articles-PDF/CP-1991-jacm.pdf
 
@@ -239,7 +239,7 @@ class Matchy:
         small_period = (2*l < m) and (pattern[0:l] == pattern[l:l+p][-l:])
 
         # matcher
-        def matcher(string, offset = 0):
+        def matcher(string, offset = 0, return_match = False):
             n = len(string)
             if 0 > offset: offset += n
             if (0 < n) and (0 < m) and (n >= offset+m):
@@ -258,7 +258,7 @@ class Matchy:
                             j = l
                             while (j > s) and (pattern[j-1] == string[pos+j-1]):
                                 j -= 1
-                            if j <= s: return pos # matched
+                            if j <= s: return pattern if return_match else pos # matched
                             pos += p
                             s = m-p
                 else:
@@ -274,27 +274,27 @@ class Matchy:
                             j = l
                             while (j > 0) and (pattern[j-1] == string[pos+j-1]):
                                 j -= 1
-                            if 0 == j: return pos # matched
+                            if 0 == j: return pattern if return_match else pos # matched
                             pos += q
-            return -1
+            return None if return_match else -1
 
-        return matcher if string is None else matcher(string, offset)
+        return matcher if string is None else matcher(string, offset, return_match)
 
-    def commentzwalter(self, pattern, string = None, offset = 0):
+    def commentzwalter(self, pattern, string = None, offset = 0, return_match = False):
         # https://en.wikipedia.org/wiki/Commentz-Walter_algorithm
-        return non_matcher if string is None else non_matcher(string, offset) # TODO
+        return non_matcher if string is None else non_matcher(string, offset, return_match) # TODO
 
-    def baezayatesgonnet(self, pattern, string = None, offset = 0):
+    def baezayatesgonnet(self, pattern, string = None, offset = 0, return_match = False):
         # https://en.wikipedia.org/wiki/Bitap_algorithm
-        return non_matcher if string is None else non_matcher(string, offset) # TODO
+        return non_matcher if string is None else non_matcher(string, offset, return_match) # TODO
 
-    def ahocorasick(self, pattern, string = None, offset = 0):
+    def ahocorasick(self, pattern, string = None, offset = 0, return_match = False):
         # https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm
-        return non_matcher if string is None else non_matcher(string, offset) # TODO
+        return non_matcher if string is None else non_matcher(string, offset, return_match) # TODO
 
 
-def non_matcher(string, offset = 0):
-    return -1
+def non_matcher(string, offset = 0, return_match = False):
+    return None if return_match else -1
 
 # non-deterministic finite automaton
 class NFA:
@@ -355,7 +355,7 @@ class NFA:
         if '|' == type:
             q = tuple([nfa.q0() for nfa in input])
         if ',' == type:
-            q = (input[0].q0(), 0)
+            q = [(input[0].q0(), 0, 0)]
         return {'q':q, 'e':0} # keep track of errors
 
     def d(self, qe, c):
@@ -460,24 +460,34 @@ class NFA:
                 if not input[i].reject(qi): e = min(e, qi['e'])
             if not math.isfinite(e): e = e0+1
         if ',' == type:
-            i = q[1]
-            e0 = q[0]['e']
-            if input[i].accept(q[0]):
-                if i+1 < len(input):
-                    q0 = input[i].d(q[0], c)
-                    q1 = input[i+1].d(input[i+1].q0(), c)
-                    if (not input[i].reject(q0)) and (input[i+1].reject(q1) or (q0['e'] - e0 < q1['e'])):
-                        q = (q0, i)
-                        e += q0['e'] - e0
+            n = len(input)
+            last_i = 0
+            qq = q
+            q = []
+            for qi in qq:
+                i = qi[1]
+                e0 = qi[0]['e']
+                if input[i].accept(qi[0]):
+                    if i+1 < n:
+                        q0 = input[i].d(qi[0], c)
+                        q1 = input[i+1].d(input[i+1].q0(), c)
+                        if not input[i].reject(q0):
+                            qi = (q0, i, qi[2])
+                            q.append(qi)
+                        if not input[i+1].reject(q1):
+                            i += 1
+                            qi = (q1, i, qi[2]+e0)
+                            q.append(qi)
                     else:
-                        q = (q1, i+1)
-                        e += q1['e']
+                        q.append(qi)
                 else:
-                    #q = q
-                    pass
-            else:
-                q = (input[i].d(q[0], c), i)
-                e += q[0]['e'] - e0
+                    qi = (input[i].d(qi[0], c), i, qi[2])
+                    q.append(qi)
+                if i > last_i:
+                    last_i = i
+                    e = qi[0]['e'] + qi[2]
+                elif i == last_i:
+                    e = min(e, qi[0]['e'] + qi[2])
         return {'q':q, 'e':e} # keep track of errors
 
     def accept(self, qe):
@@ -491,7 +501,7 @@ class NFA:
             elif 'errors' in type:
                 return (0 < len(q[0])) and (q[0][-1] == len(input))
             else:
-                return (e <= type['total_errors']) and input.accept(q)
+                return input.accept_with_errors(q, type['total_errors'])
         if 'l' == type:
             return q == len(input)
         if '^' == type:
@@ -503,7 +513,8 @@ class NFA:
         if '|' == type:
             return 0 < len(list(filter(lambda entry: entry[1].accept(q[entry[0]]), enumerate(input))))
         if ',' == type:
-            return (q[1]+1 == len(input)) and input[q[1]].accept(q[0])
+            n = len(input)
+            return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and input[qi[1]].accept(qi[0]), q)))
 
     def reject(self, qe):
         type = self.type
@@ -516,7 +527,7 @@ class NFA:
             elif 'errors' in type:
                 return not q[0]
             else:
-                return (e > type['total_errors']) or input.reject(q)
+                return input.reject_with_errors(q, type['total_errors'])
         if 'l' == type:
             return 0 == q
         if '^' == type:
@@ -528,7 +539,32 @@ class NFA:
         if '|' == type:
             return len(input) == len(list(filter(lambda entry: entry[1].reject(q[entry[0]]), enumerate(input))))
         if ',' == type:
-            return input[q[1]].reject(q[0])
+            return len(q) == len(list(filter(lambda qi: input[qi[1]].reject(qi[0]), q)))
+
+    def accept_with_errors(self, qe, max_errors = None):
+        if not self.accept(qe): return False
+        if max_errors is None: return True
+        type = self.type
+        input = self.input
+        q = qe['q']
+        e = qe['e']
+        if isinstance(type, dict) or (',' != type):
+            return e <= max_errors
+        if ',' == type:
+            n = len(input)
+            return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and (qi[0]['e'] + qi[2] <= max_errors) and input[qi[1]].accept(qi[0]), q)))
+
+    def reject_with_errors(self, qe, max_errors = None):
+        if self.reject(qe): return True
+        if max_errors is None: return False
+        type = self.type;
+        input = self.input;
+        q = qe['q']
+        e = qe['e']
+        if isinstance(type, dict) or (',' != type):
+            return e > max_errors
+        if ',' == type:
+            return len(q) == len(list(filter(lambda qi: (qi[0]['e'] + qi[2] > max_errors) or input[qi[1]].reject(qi[0]), q)));
 
     def match(self, string, offset = 0, return_match = False, q = None):
         i = offset
