@@ -660,14 +660,14 @@ class MatchyNFA
         if (',' === $type)
         {
             $i = $q[1];
+            $e0 = $q[0]['e'];
             if ($input[$i]->accept($q[0]))
             {
                 if ($i+1 < count($input))
                 {
-                    $e0 = $q[0]['e'];
                     $q0 = $input[$i]->d($q[0], $c);
                     $q1 = $input[$i+1]->d($input[$i+1]->q0(), $c);
-                    if ($input[$i+1]->reject($q1) && !$input[$i]->reject($q0))
+                    if ((!$input[$i]->reject($q0)) && ($input[$i+1]->reject($q1) || ($q0['e'] - $e0 < $q1['e'])))
                     {
                         $q = array($q0, $i);
                         $e += $q0['e'] - $e0;
@@ -685,7 +685,6 @@ class MatchyNFA
             }
             else
             {
-                $e0 = $q[0]['e'];
                 $q = array($input[$i]->d($q[0], $c), $i);
                 $e += $q[0]['e'] - $e0;
             }

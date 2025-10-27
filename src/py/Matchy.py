@@ -461,12 +461,12 @@ class NFA:
             if not math.isfinite(e): e = e0+1
         if ',' == type:
             i = q[1]
+            e0 = q[0]['e']
             if input[i].accept(q[0]):
                 if i+1 < len(input):
-                    e0 = q[0]['e']
                     q0 = input[i].d(q[0], c)
                     q1 = input[i+1].d(input[i+1].q0(), c)
-                    if input[i+1].reject(q1) and not input[i].reject(q0):
+                    if (not input[i].reject(q0)) and (input[i+1].reject(q1) or (q0['e'] - e0 < q1['e'])):
                         q = (q0, i)
                         e += q0['e'] - e0
                     else:
@@ -476,7 +476,6 @@ class NFA:
                     #q = q
                     pass
             else:
-                e0 = q[0]['e']
                 q = (input[i].d(q[0], c), i)
                 e += q[0]['e'] - e0
         return {'q':q, 'e':e} # keep track of errors
