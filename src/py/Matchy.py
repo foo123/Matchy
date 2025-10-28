@@ -2,7 +2,7 @@
 #  Matchy
 #  Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 #
-#  @version: 3.0.0
+#  @version: 4.0.0
 #  https://github.com/foo123/Matchy
 #
 ##
@@ -17,7 +17,7 @@ class Matchy:
     https://github.com/foo123/Matchy
     """
 
-    VERSION = "3.0.0"
+    VERSION = "4.0.0"
 
     def __init__(self):
         pass
@@ -298,23 +298,38 @@ def non_matcher(string, offset = 0, return_match = False):
 
 # non-deterministic finite automaton
 class NFA:
-    def makeFuzzy(nfa, max_errors, transpositions = False):
-        if isinstance(nfa, str):
-            # change literal string to approximate match
-            nfa = NFA(nfa, {'errors':max_errors, 'transpositions':transpositions})
-        elif isinstance(nfa, NFA):
-            if isinstance(nfa.type, dict) and ('errors' in nfa.type):
-                # leave as is
-                pass
-            elif 'l' == nfa.type:
-                # change literal match to approximate match
-                nfa = NFA(nfa.input, {'errors':max_errors, 'transpositions':transpositions})
-            elif isinstance(nfa.input, (list,tuple)):
-                # recurse
-                nfa.input = list(map(lambda input: NFA.makeFuzzy(input, max_errors, transpositions), nfa.input))
-            elif isinstance(nfa.input, NFA):
-                # recurse
-                nfa.input = NFA.makeFuzzy(nfa.input, max_errors, transpositions)
+    def makeFuzzy(nfa, max_errors, at_word_level = False, transpositions = False):
+        if at_word_level:
+            if isinstance(nfa, NFA):
+                if isinstance(nfa.type, dict) and (('errors' in nfa.type) or ('total_errors' in nfa.type)):
+                    # leave as is
+                    pass
+                elif ',' == nfa.type:
+                    # approximate at word level
+                    nfa = NFA(NFA.makeFuzzy(nfa.input, max_errors, at_word_level, transpositions), ',,,' if transpositions  else ',,')
+                elif isinstance(nfa.input, (list,tuple)):
+                    # recurse
+                    nfa.input = list(map(lambda input: NFA.makeFuzzy(input, max_errors, at_word_level, transpositions), nfa.input))
+                elif isinstance(nfa.input, NFA):
+                    # recurse
+                    nfa.input = NFA.makeFuzzy(nfa.input, max_errors, at_word_level, transpositions)
+        else: # at char level
+            if isinstance(nfa, NFA):
+                if isinstance(nfa.type, dict) and (('errors' in nfa.type) or ('total_errors' in nfa.type)):
+                    # leave as is
+                    pass
+                elif 'l' == nfa.type:
+                    # change literal match to approximate match
+                    nfa = NFA(nfa.input, {'errors':max_errors, 'transpositions':transpositions})
+                elif isinstance(nfa.input, (list,tuple)):
+                    # recurse
+                    nfa.input = list(map(lambda input: NFA.makeFuzzy(input, max_errors, at_word_level, transpositions), nfa.input))
+                elif isinstance(nfa.input, NFA):
+                    # recurse
+                    nfa.input = NFA.makeFuzzy(nfa.input, max_errors, at_word_level, transpositions)
+            elif isinstance(nfa, str):
+                # change literal string to approximate match
+                nfa = NFA(nfa, {'errors':max_errors, 'transpositions':transpositions})
         return nfa
 
     def __init__(self, input, type = 'l'):
@@ -322,7 +337,7 @@ class NFA:
         if '*' == type: type = {'min':0, 'max':INF}
         if '+' == type: type = {'min':1, 'max':INF}
         self.type = type
-        self.input = NFA.makeFuzzy(input, type['total_errors'], type['transpositions'] if 'transpositions' in type else False) if isinstance(type, dict) and ('total_errors' in type) else input
+        self.input = NFA.makeFuzzy(input, type['total_errors'], type['word_level'] if 'word_level' in type else False, type['transpositions'] if 'transpositions' in type else False) if isinstance(type, dict) and ('total_errors' in type) else input
 
     def q0(self):
         type = self.type
@@ -356,6 +371,11 @@ class NFA:
             q = tuple([nfa.q0() for nfa in input])
         if ',' == type:
             q = [(input[0].q0(), 0, 0)]
+        if (',,' == type) or (',,,' == type):
+            q = []
+            for i in range(len(input)):
+                # push for insertion, deletion, substitution, transposition
+                q.append((input[i].q0(), 0, i, i))
         return {'q':q, 'e':0} # keep track of errors
 
     def d(self, qe, c):
@@ -461,7 +481,6 @@ class NFA:
             if not math.isfinite(e): e = e0+1
         if ',' == type:
             n = len(input)
-            last_i = 0
             qq = q
             q = []
             for qi in qq:
@@ -483,11 +502,60 @@ class NFA:
                 else:
                     qi = (input[i].d(qi[0], c), i, qi[2])
                     q.append(qi)
+            last_i = 0
+            for qi in q:
+                i = qi[1]
                 if i > last_i:
                     last_i = i
                     e = qi[0]['e'] + qi[2]
                 elif i == last_i:
                     e = min(e, qi[0]['e'] + qi[2])
+        if (',,' == type) or (',,,' == type):
+            n = len(input)
+            qq = q
+            q = []
+            for qi in qq:
+                i = qi[1]
+                j = qi[2]
+                ei = qi[3]
+                if input[j].accept(qi[0]):
+                    if i+1 < n:
+                        q0 = input[j].d(qi[0], c)
+                        if not input[j].reject(q0):
+                            qi = (q0, i, j, ei)
+                            q.append(qi)
+                        # push next for insertion, deletion, substitution
+                        for k in range(1, n-j):
+                            q0 = input[j+k].q0()
+                            q1 = input[j+k].d(q0, c)
+                            if not input[j+k].reject(q1):
+                                qi = (q1, i+1, j+k, ei+k-1)
+                                q.append(qi)
+                        # push prev for transposition
+                        if (',,,' == type) and (0 < j) and (i+1 == j):
+                            q0 = input[j-1].q0()
+                            q1 = input[j-1].d(q0, c)
+                            if not input[j-1].reject(q1):
+                                qi = (q1, i+1, j-1, ei-1+1) # carries the previous error of deletion
+                                q.append(qi)
+                    else:
+                        q.append(qi)
+                else:
+                    qi = (input[j].d(qi[0], c), i, j, ei)
+                    if input[j].reject(qi[0]):
+                        if i+1 < n:
+                            # push again for insertion, substitution
+                            q0 = input[j].q0()
+                            qi = (input[j].d(q0, c), i+1, j, ei+(1 if 0 < i else 0))
+                            q.append(qi)
+                            # push next for deletion
+                            for k in range(n-j):
+                                q0 = input[j+k].q0()
+                                qi = (input[j+k].d(q0, c), i+1, j+k, ei+k+(1 if 0 < i else 0))
+                                q.append(qi)
+                    else:
+                        q.append(qi)
+            e = 0 # handled at word level
         return {'q':q, 'e':e} # keep track of errors
 
     def accept(self, qe):
@@ -515,6 +583,9 @@ class NFA:
         if ',' == type:
             n = len(input)
             return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and input[qi[1]].accept(qi[0]), q)))
+        if (',,' == type) or (',,,' == type):
+            n = len(input)
+            return 0 < len(list(filter(lambda qi: input[qi[2]].accept(qi[0]), q)))
 
     def reject(self, qe):
         type = self.type
@@ -540,6 +611,8 @@ class NFA:
             return len(input) == len(list(filter(lambda entry: entry[1].reject(q[entry[0]]), enumerate(input))))
         if ',' == type:
             return len(q) == len(list(filter(lambda qi: input[qi[1]].reject(qi[0]), q)))
+        if (',,' == type) or (',,,' == type):
+            return len(q) == len(list(filter(lambda qi: input[qi[2]].reject(qi[0]), q)))
 
     def accept_with_errors(self, qe, max_errors = None):
         if not self.accept(qe): return False
@@ -548,11 +621,14 @@ class NFA:
         input = self.input
         q = qe['q']
         e = qe['e']
-        if isinstance(type, dict) or (',' != type):
+        if isinstance(type, dict) or (',' != type[0]):
             return e <= max_errors
         if ',' == type:
             n = len(input)
             return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and (qi[0]['e'] + qi[2] <= max_errors) and input[qi[1]].accept(qi[0]), q)))
+        if (',,' == type) or (',,,' == type):
+            n = len(input)
+            return 0 < len(list(filter(lambda qi: (qi[3] <= max_errors) and input[qi[2]].accept(qi[0]), q)))
 
     def reject_with_errors(self, qe, max_errors = None):
         if self.reject(qe): return True
@@ -561,10 +637,12 @@ class NFA:
         input = self.input;
         q = qe['q']
         e = qe['e']
-        if isinstance(type, dict) or (',' != type):
+        if isinstance(type, dict) or (',' != type[0]):
             return e > max_errors
         if ',' == type:
-            return len(q) == len(list(filter(lambda qi: (qi[0]['e'] + qi[2] > max_errors) or input[qi[1]].reject(qi[0]), q)));
+            return len(q) == len(list(filter(lambda qi: (qi[0]['e'] + qi[2] > max_errors) or input[qi[1]].reject(qi[0]), q)))
+        if (',,' == type) or (',,,' == type):
+            return len(q) == len(list(filter(lambda qi: (qi[3] > max_errors) or input[qi[2]].reject(qi[0]), q)))
 
     def match(self, string, offset = 0, return_match = False, q = None):
         i = offset

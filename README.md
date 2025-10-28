@@ -1,10 +1,10 @@
 # Matchy
 
-Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
+Exact and fuzzy string and regular expression searching algorithms for PHP, JavaScript, Python
 
 ![Matchy](/matchy.jpg)
 
-**version: 3.0.0**
+**version: 4.0.0** in progress
 
 
 **Included Algorithms:**
@@ -19,7 +19,9 @@ Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 * [Aho-Corasick Matcher](https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_algorithm) (TODO)
 
 
-A generic **Non-Deterministic Finite Automaton** implementation is also included that can match [exact regular expression patterns](https://en.wikipedia.org/wiki/Nondeterministic_finite_automaton), [fuzzy patterns](https://en.wikipedia.org/wiki/Levenshtein_automaton), fuzzy regular expression patterns and various combinations of these.
+A generic **Non-Deterministic Finite Automaton** is also included that can match **exact regular expression patterns**, **fuzzy patterns**, **fuzzy regular expression patterns** and various combinations of these.
+
+The theory behind the implementation of the generic automaton is a custom fully functional and transparent fusion of a [Non-Deterministic Finite Automaton](https://en.wikipedia.org/wiki/Nondeterministic_finite_automaton) for a given regular expression, and a [Non-Deterministic Levenshtein Automaton](https://en.wikipedia.org/wiki/Levenshtein_automaton) for approximate matching either at *char level* or at *word level* (ie approximate *words* or approximate *sentences*) with option to take account of transpositions, ie a Damerau-Levenshtein Automaton.
 
 
 **examples:**

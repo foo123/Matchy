@@ -2,7 +2,7 @@
 *  Matchy
 *  Exact and fuzzy string searching algorithms for PHP, JavaScript, Python
 *
-*  @version: 3.0.0
+*  @version: 4.0.0
 *  https://github.com/foo123/Matchy
 *
 **/
@@ -22,7 +22,7 @@ else if (!(name in root)) /* Browser/WebWorker/.. */
 function Matchy()
 {
 }
-Matchy.VERSION = "3.0.0";
+Matchy.VERSION = "4.0.0";
 Matchy.prototype = {
     constructor: Matchy,
 
@@ -429,36 +429,66 @@ function NFA(input, type)
     if ('*' === type) type = {min:0, max:INF};
     if ('+' === type) type = {min:1, max:INF};
     self.type = type;
-    self.input = is_obj(type) && isset(type, 'total_errors') ? NFA.makeFuzzy(input, type['total_errors'], !!type['transpositions']) : input;
+    self.input = is_obj(type) && isset(type, 'total_errors') ? NFA.makeFuzzy(input, type['total_errors'], !!type['word_level'], !!type['transpositions']) : input;
 }
-NFA.makeFuzzy = function(nfa, max_errors, transpositions) {
-    if (is_string(nfa))
+NFA.makeFuzzy = function(nfa, max_errors, at_word_level, transpositions) {
+    if (at_word_level)
     {
-        // change literal string to approximate match
-        nfa = new NFA(nfa, {'errors':max_errors, 'transpositions':!!transpositions});
+        if (nfa instanceof NFA)
+        {
+            if (is_obj(nfa.type) && (isset(nfa.type, 'errors') || isset(nfa.type, 'total_errors')))
+            {
+                // leave as is
+            }
+            else if (',' === nfa.type)
+            {
+                // approximate at word level
+                nfa = new NFA(NFA.makeFuzzy(nfa.input, max_errors, at_word_level, transpositions), transpositions ? ',,,' : ',,');
+            }
+            else if (is_array(nfa.input))
+            {
+                // recurse
+                nfa.input = nfa.input.map(function(input) {
+                    return NFA.makeFuzzy(input, max_errors, at_word_level, transpositions);
+                });
+            }
+            else if (nfa.input instanceof NFA)
+            {
+                // recurse
+                nfa.input = NFA.makeFuzzy(nfa.input, max_errors, at_word_level, transpositions);
+            }
+        }
     }
-    else if (nfa instanceof NFA)
+    else // at char level
     {
-        if (is_obj(nfa.type) && isset(nfa.type, 'errors'))
+        if (nfa instanceof NFA)
         {
-            // leave as is
+            if (is_obj(nfa.type) && (isset(nfa.type, 'errors') || isset(nfa.type, 'total_errors')))
+            {
+                // leave as is
+            }
+            else if ('l' === nfa.type)
+            {
+                // change literal match to approximate match
+                nfa = new NFA(nfa.input, {'errors':max_errors, 'transpositions':!!transpositions});
+            }
+            else if (is_array(nfa.input))
+            {
+                // recurse
+                nfa.input = nfa.input.map(function(input) {
+                    return NFA.makeFuzzy(input, max_errors, at_word_level, transpositions);
+                });
+            }
+            else if (nfa.input instanceof NFA)
+            {
+                // recurse
+                nfa.input = NFA.makeFuzzy(nfa.input, max_errors, at_word_level, transpositions);
+            }
         }
-        else if ('l' === nfa.type)
+        else if (is_string(nfa))
         {
-            // change literal match to approximate match
-            nfa = new NFA(nfa.input, {'errors':max_errors, 'transpositions':!!transpositions});
-        }
-        else if (is_array(nfa.input))
-        {
-            // recurse
-            nfa.input = nfa.input.map(function(input) {
-                return NFA.makeFuzzy(input, max_errors, transpositions);
-            });
-        }
-        else if (nfa.input instanceof NFA)
-        {
-            // recurse
-            nfa.input = NFA.makeFuzzy(nfa.input, max_errors, transpositions);
+            // change literal string to approximate match
+            nfa = new NFA(nfa, {'errors':max_errors, 'transpositions':!!transpositions});
         }
     }
     return nfa;
@@ -522,6 +552,15 @@ NFA.prototype = {
         if (',' === type)
         {
             q = [[input[0].q0(), 0, 0]];
+        }
+        if ((',,' === type) || (',,,' === type))
+        {
+            q = [];
+            for (var i=0,n=input.length; i<n; ++i)
+            {
+                // push for insertion, deletion, substitution, transposition
+                q.push([input[i].q0(), 0, i, i]);
+            }
         }
         return {q:q, e:0}; // keep track of errors
     },
@@ -679,9 +718,7 @@ NFA.prototype = {
         }
         if (',' === type)
         {
-            var n = input.length,
-                last_i = 0,
-                qq = q;
+            var n = input.length, qq = q;
             q = [];
             qq.forEach(function(qi) {
                 var i = qi[1],
@@ -714,6 +751,10 @@ NFA.prototype = {
                     qi = [input[i].d(qi[0], c), i, qi[2]];
                     q.push(qi);
                 }
+            });
+            var last_i = 0;
+            q.forEach(function(qi) {
+                var i = qi[1];
                 if (i > last_i)
                 {
                     last_i = i;
@@ -724,6 +765,82 @@ NFA.prototype = {
                     e = stdMath.min(e, qi[0]['e'] + qi[2]);
                 }
             });
+        }
+        if ((',,' === type) || (',,,' === type))
+        {
+            var n = input.length, qq = q;
+            q = [];
+            qq.forEach(function(qi) {
+                var i = qi[1],
+                    j = $qi[2],
+                    ei = $qi[3],
+                    q0, q1, k
+                ;
+                if (input[j].accept(qi[0]))
+                {
+                    if (i+1 < n)
+                    {
+                        q0 = input[j].d(qi[0], c);
+                        if (!input[j].reject(q0))
+                        {
+                            qi = [q0, i, j, ei];
+                            q.push(qi);
+                        }
+                        // push next for insertion, deletion, substitution
+                        for (k=1; j+k<n; ++k)
+                        {
+                            q0 = input[j+k].q0();
+                            q1 = input[j+k].d(q0, c);
+                            if (!input[j+k].reject(q1))
+                            {
+                                qi = [q1, i+1, j+k, ei+k-1];
+                                q.push(qi);
+                            }
+                        }
+                        // push prev for transposition
+                        if ((',,,' === type) && (0 < j) && (i+1 === j))
+                        {
+                            q0 = input[j-1].q0();
+                            q1 = input[j-1].d(q0, c);
+                            if (!input[j-1].reject(q1))
+                            {
+                                qi = [q1, i+1, j-1, ei-1+1]; // carries the previous error of deletion
+                                q.push(qi);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        q.push(qi);
+                    }
+                }
+                else
+                {
+                    qi = [input[j].d(qi[0], c), i, j, ei];
+                    if (input[j].reject(qi[0]))
+                    {
+                        if (i+1 < n)
+                        {
+                            // push again for insertion, substitution
+                            q0 = input[j].q0();
+                            qi = [input[j].d(q0, c), i+1, j, ei+(0 < i ? 1 : 0)];
+                            q.push(qi);
+                            // push next for deletion
+                            for (k=1; j+k<n; ++k)
+                            {
+                                q0 = input[j+k].q0();
+                                qi = [input[j+k].d(q0, c), i+1, j+k, ei+k+(0 < i ? 1 : 0)];
+                                q.push(qi);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        q.push(qi);
+                    }
+                }
+            });
+            e = 0; // handled at word level
         }
         return {q:q, e:e}; // keep track of errors
     },
@@ -778,6 +895,13 @@ NFA.prototype = {
                 return (qi[1]+1 === n) && input[qi[1]].accept(qi[0]);
             }).length;
         }
+        if ((',,' === type) || (',,,' === type))
+        {
+            var n = input.length;
+            return 0 < q.filter(function(qi) {
+                return input[qi[2]].accept(qi[0]);
+            }).length;
+        }
     },
 
     reject: function(qe) {
@@ -829,6 +953,12 @@ NFA.prototype = {
                 return input[qi[1]].reject(qi[0]);
             }).length;
         }
+        if ((',,' === type) || (',,,' === type))
+        {
+            return q.length === q.filter(function(qi) {
+                return input[qi[2]].reject(qi[0]);
+            }).length;
+        }
     },
 
     accept_with_errors: function(qe, max_errors) {
@@ -839,7 +969,7 @@ NFA.prototype = {
         input = self.input;
         q = qe['q'];
         e = qe['e'];
-        if (is_obj(type) || (',' !== type))
+        if (is_obj(type) || (',' !== type.charAt(0)))
         {
             return e <= max_errors;
         }
@@ -848,6 +978,13 @@ NFA.prototype = {
             var n = input.length;
             return 0 < q.filter(function(qi) {
                 return (qi[1]+1 === n) && (qi[0]['e'] + qi[2] <= max_errors) && input[qi[1]].accept(qi[0]);
+            }).length;
+        }
+        if ((',,' === type) || (',,,' === type))
+        {
+            var n = input.length;
+            return 0 < q.filter(function(qi) {
+                return (qi[3] <= max_errors) && input[qi[2]].accept(qi[0]);
             }).length;
         }
     },
@@ -860,7 +997,7 @@ NFA.prototype = {
         input = self.input;
         q = qe['q'];
         e = qe['e'];
-        if (is_obj(type) || (',' !== type))
+        if (is_obj(type) || (',' !== type.charAt(0)))
         {
             return e > max_errors;
         }
@@ -868,6 +1005,12 @@ NFA.prototype = {
         {
             return q.length === q.filter(function(qi) {
                 return (qi[0]['e'] + qi[2] > max_errors) || input[qi[1]].reject(qi[0]);
+            }).length;
+        }
+        if ((',,' === type) || (',,,' === type))
+        {
+            return q.length === q.filter(function(qi) {
+                return (qi[3] > max_errors) || input[qi[2]].reject(qi[0]);
             }).length;
         }
     },
