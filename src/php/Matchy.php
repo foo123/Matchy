@@ -1019,7 +1019,6 @@ class MatchyNFA
         }
         if ((',,' === $type) || (',,,' === $type))
         {
-            $n = count($input);
             $e = INF;
             foreach ($q as $qi)
             {
@@ -1038,8 +1037,9 @@ class MatchyNFA
         $i = $offset;
         $j = $i;
         $n = mb_strlen($string, 'UTF-8');
-        if (null === $q) $q = $this->q0();
         $c = '';
+        $e = 0;
+        if (null === $q) $q = $this->q0();
         for (;;)
         {
             if ($j >= $n)
@@ -1057,10 +1057,12 @@ class MatchyNFA
             if (($n-1 === $j) || ("\n" === $c)) $q = $this->d($q, 1);
             if ($this->accept($q))
             {
-                return array($return_match ? mb_substr($string, $i, $j-$i+1, 'UTF-8') : $i, $this->get_errors($q)); // matched
+                $e = $this->get_errors($q);
+                return array($return_match ? mb_substr($string, $i, $j-$i+1, 'UTF-8') : $i, $e); // matched
             }
             elseif ($this->reject($q))
             {
+                $e = max($e, $this->get_errors($q));
                 $j = $n; // failed, try next
             }
             else
@@ -1068,7 +1070,7 @@ class MatchyNFA
                 ++$j; // continue
             }
         }
-        return array($return_match ? null : -1, $this->get_errors($q));
+        return array($return_match ? null : -1, $e);
     }
 }
 }

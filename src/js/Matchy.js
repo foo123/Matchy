@@ -1035,7 +1035,6 @@ NFA.prototype = {
         }
         if ((',,' === type) || (',,,' === type))
         {
-            var n = input.length;
             e = Infinity;
             q.forEach(function(qi) {
                 if (input[qi[2]].accept(qi[0]))
@@ -1053,9 +1052,8 @@ NFA.prototype = {
         var i = offset || 0,
             j = i,
             n = string.length,
-            c, prevc;
+            prevc, c = '', e = 0;
         if (null == q) q = self.q0();
-        c = '';
         for (;;)
         {
             if (j >= n)
@@ -1073,10 +1071,12 @@ NFA.prototype = {
             if ((n-1 === j) || ("\n" === c)) q = self.d(q, 1);
             if (self.accept(q))
             {
-                return [return_match ? string.slice(i, j+1) : i, self.get_errors(q)]; // matched
+                e = self.get_errors(q);
+                return [return_match ? string.slice(i, j+1) : i, e]; // matched
             }
             else if (self.reject(q))
             {
+                e = stdMath.max(e, self.get_errors(q));
                 j = n; // failed, try next
             }
             else
@@ -1084,7 +1084,7 @@ NFA.prototype = {
                 ++j; // continue
             }
         }
-        return [return_match ? null : -1, self.get_errors(q)];
+        return [return_match ? null : -1, e];
     }
 };
 Matchy.NFA = NFA;

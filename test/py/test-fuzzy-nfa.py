@@ -44,7 +44,7 @@ def test_case(nfa, pattern, string, match, errors):
     print('fuzzynfa("'+pattern+'", "'+string+'") = '+str(found[0])+', errors '+str(found[1])+' (expected '+str(match)+', errors '+str(errors)+')')
 
 def test():
-    test = {'pattern':'^(a+)(b+)$', 'nfa':NFA(NFA([NFA('', '^'), NFA(NFA('a'), '+'), NFA(NFA('b'), '+'), NFA('', '$')], ','), {'total_errors':2})}
+    test = {'pattern':'^(a+)(b+)$', 'nfa':NFA(NFA([NFA('', '^'), NFA(NFA('a'), '+'), NFA(NFA('b'), '+'), NFA('', '$')], ','), {'total_errors':2,'word_level':False})}
     test_case(test['nfa'], test['pattern'], "aaabbbbb", 0, 0) # 0 errors
     test_case(test['nfa'], test['pattern'], "ababbbbb", 0, 1) # 1 errors
     test_case(test['nfa'], test['pattern'], "abababbb", 0, 2) # 2 errors

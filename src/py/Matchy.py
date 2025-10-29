@@ -656,7 +656,6 @@ class NFA:
                 if (qi[1]+1 == n) and input[qi[1]].accept(qi[0]):
                     e = min(e, qi[0]['e'] + qi[2])
         if (',,' == type) or (',,,' == type):
-            n = len(input)
             e = INF
             for qi in q:
                 if input[qi[2]].accept(qi[0]):
@@ -668,8 +667,9 @@ class NFA:
         i = offset
         j = i
         n = len(string)
-        if q is None: q = self.q0()
         c = ''
+        e = 0
+        if q is None: q = self.q0()
         while True:
             if j >= n:
                 i += 1
@@ -683,12 +683,14 @@ class NFA:
             q = self.d(q, c)
             if (n-1 == j) or ("\n" == c): q = self.d(q, 1)
             if self.accept(q):
-                return [string[i:j+1] if return_match else i, self.get_errors(q)] # matched
+                e = max(e, self.get_errors(q))
+                return [string[i:j+1] if return_match else i, e] # matched
             elif self.reject(q):
+                e = self.get_errors(q)
                 j = n # failed, try next
             else:
                 j += 1 # continue
-        return [None if return_match else -1, self.get_errors(q)]
+        return [None if return_match else -1, e]
 
 Matchy.NFA = NFA
 
