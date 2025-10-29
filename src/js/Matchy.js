@@ -722,6 +722,7 @@ NFA.prototype = {
             q = [];
             qq.forEach(function(qi) {
                 var i = qi[1],
+                    ei = qi[2],
                     e0 = qi[0]['e'];
                 if (input[i].accept(qi[0]))
                 {
@@ -731,13 +732,13 @@ NFA.prototype = {
                             q1 = input[i+1].d(input[i+1].q0(), c);
                         if (!input[i].reject(q0))
                         {
-                            qi = [q0, i, qi[2]];
+                            qi = [q0, i, ei];
                             q.push(qi);
                         }
                         if (!input[i+1].reject(q1))
                         {
                             ++i;
-                            qi = [q1, i, qi[2]+e0];
+                            qi = [q1, i, ei+e0];
                             q.push(qi);
                         }
                     }
@@ -748,7 +749,7 @@ NFA.prototype = {
                 }
                 else
                 {
-                    qi = [input[i].d(qi[0], c), i, qi[2]];
+                    qi = [input[i].d(qi[0], c), i, ei];
                     q.push(qi);
                 }
             });

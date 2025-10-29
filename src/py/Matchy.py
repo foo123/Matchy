@@ -485,22 +485,23 @@ class NFA:
             q = []
             for qi in qq:
                 i = qi[1]
+                ei = qi[2]
                 e0 = qi[0]['e']
                 if input[i].accept(qi[0]):
                     if i+1 < n:
                         q0 = input[i].d(qi[0], c)
                         q1 = input[i+1].d(input[i+1].q0(), c)
                         if not input[i].reject(q0):
-                            qi = (q0, i, qi[2])
+                            qi = (q0, i, ei)
                             q.append(qi)
                         if not input[i+1].reject(q1):
                             i += 1
-                            qi = (q1, i, qi[2]+e0)
+                            qi = (q1, i, ei+e0)
                             q.append(qi)
                     else:
                         q.append(qi)
                 else:
-                    qi = (input[i].d(qi[0], c), i, qi[2])
+                    qi = (input[i].d(qi[0], c), i, ei)
                     q.append(qi)
             last_i = 0
             for qi in q:
@@ -683,10 +684,10 @@ class NFA:
             q = self.d(q, c)
             if (n-1 == j) or ("\n" == c): q = self.d(q, 1)
             if self.accept(q):
-                e = max(e, self.get_errors(q))
+                e = self.get_errors(q)
                 return [string[i:j+1] if return_match else i, e] # matched
             elif self.reject(q):
-                e = self.get_errors(q)
+                e = max(e, self.get_errors(q))
                 j = n # failed, try next
             else:
                 j += 1 # continue
