@@ -518,42 +518,37 @@ class NFA:
             for qi in qq:
                 i = qi[1]
                 j = qi[2]
+                next_i = i+1 if i+1 < n else i
                 ei = qi[3]
                 if input[j].accept(qi[0]):
-                    if i+1 < n:
-                        q0 = input[j].d(qi[0], c)
-                        if not input[j].reject(q0):
-                            qi = (q0, i, j, ei)
-                            q.append(qi)
-                        # push next for insertion, deletion, substitution
-                        for k in range(1, n-j):
-                            q0 = input[j+k].q0()
-                            q1 = input[j+k].d(q0, c)
-                            if not input[j+k].reject(q1):
-                                qi = (q1, i+1, j+k, ei+k-1)
-                                q.append(qi)
-                        # push prev for transposition
-                        if (',,,' == type) and (0 < j) and (i+1 == j):
-                            q0 = input[j-1].q0()
-                            q1 = input[j-1].d(q0, c)
-                            if not input[j-1].reject(q1):
-                                qi = (q1, i+1, j-1, ei-1+1) # carries the previous error of deletion
-                                q.append(qi)
+                    q0 = input[j].d(qi[0], c)
+                    if not input[j].reject(q0):
+                        qi = (q0, next_i, j, ei+(j)-(next_i))
+                        q.append(qi)
                     else:
                         q.append(qi)
+                    # push next for insertion, deletion, substitution
+                    for k in range(1, n-j):
+                        q1 = input[j+k].d(input[j+k].q0(), c)
+                        if not input[j+k].reject(q1):
+                            qi = (q1, next_i, j+k, ei+(j+k)-(next_i))
+                            q.append(qi)
+                    # push prev for transposition
+                    if (',,,' == type) and (0 < j) and (i+1 == j):
+                        q1 = input[j-1].d(input[j-1].q0(), c)
+                        if not input[j-1].reject(q1):
+                            qi = (q1, i+1, j-1, ei-1+1) # carries the previous error of deletion
+                            q.append(qi)
                 else:
                     qi = (input[j].d(qi[0], c), i, j, ei)
                     if input[j].reject(qi[0]):
-                        if i+1 < n:
-                            # push again for insertion, substitution
-                            q0 = input[j].q0()
-                            qi = (input[j].d(q0, c), i+1, j, ei+(1 if 0 < i else 0))
+                        # push again for insertion, substitution
+                        qi = (input[j].d(input[j].q0(), c), next_i, j, ei+(1 if 0 < i else 0))
+                        q.append(qi)
+                        # push next for deletion
+                        for k in range(1, n-j):
+                            qi = (input[j+k].d(input[j+k].q0(), c), next_i, j+k, ei+(j+k)-(next_i)+(1 if 0 < i else 0))
                             q.append(qi)
-                            # push next for deletion
-                            for k in range(1, n-j):
-                                q0 = input[j+k].q0()
-                                qi = (input[j+k].d(q0, c), i+1, j+k, ei+k+(1 if 0 < i else 0))
-                                q.append(qi)
                     else:
                         q.append(qi)
             e = 0 # handled at word level
@@ -586,7 +581,7 @@ class NFA:
             return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and input[qi[1]].accept(qi[0]), q)))
         if (',,' == type) or (',,,' == type):
             n = len(input)
-            return 0 < len(list(filter(lambda qi: input[qi[2]].accept(qi[0]), q)))
+            return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and input[qi[2]].accept(qi[0]), q)))
 
     def reject(self, qe):
         type = self.type
@@ -629,7 +624,7 @@ class NFA:
             return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and (qi[0]['e'] + qi[2] <= max_errors) and input[qi[1]].accept(qi[0]), q)))
         if (',,' == type) or (',,,' == type):
             n = len(input)
-            return 0 < len(list(filter(lambda qi: (qi[3] <= max_errors) and input[qi[2]].accept(qi[0]), q)))
+            return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and (qi[3] <= max_errors) and input[qi[2]].accept(qi[0]), q)))
 
     def reject_with_errors(self, qe, max_errors = None):
         if self.reject(qe): return True

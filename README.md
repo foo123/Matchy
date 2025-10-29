@@ -1,6 +1,6 @@
 # Matchy
 
-Exact and fuzzy string and regular expression searching algorithms for PHP, JavaScript, Python
+Exact and fuzzy string and regular expression matching algorithms for PHP, JavaScript, Python
 
 ![Matchy](/matchy.jpg)
 
