@@ -772,8 +772,8 @@ NFA.prototype = {
             q = [];
             qq.forEach(function(qi) {
                 var i = qi[1],
-                    j = $qi[2],
-                    ei = $qi[3],
+                    j = qi[2],
+                    ei = qi[3],
                     q0, q1, k
                 ;
                 if (input[j].accept(qi[0]))
@@ -1015,6 +1015,39 @@ NFA.prototype = {
         }
     },
 
+    get_errors: function(qe) {
+        var self = this,
+            type = self.type,
+            input = self.input,
+            q = qe['q'],
+            e = qe['e']
+        ;
+        if (',' === type)
+        {
+            var n = input.length;
+            e = Infinity;
+            q.forEach(function(qi) {
+                if ((qi[1]+1 === n) && input[qi[1]].accept(qi[0]))
+                {
+                    e = stdMath.min(e, qi[0]['e'] + qi[2]);
+                }
+            });
+        }
+        if ((',,' === type) || (',,,' === type))
+        {
+            var n = input.length;
+            e = Infinity;
+            q.forEach(function(qi) {
+                if (input[qi[2]].accept(qi[0]))
+                {
+                    e = stdMath.min(e, qi[3]);
+                }
+            });
+        }
+        if (!isFinite(e)) e = 0;
+        return e;
+    },
+
     match: function(string, offset, return_match, q) {
         var self = this;
         var i = offset || 0,
@@ -1040,7 +1073,7 @@ NFA.prototype = {
             if ((n-1 === j) || ("\n" === c)) q = self.d(q, 1);
             if (self.accept(q))
             {
-                return return_match ? string.slice(i, j+1) : i; // matched
+                return [return_match ? string.slice(i, j+1) : i, self.get_errors(q)]; // matched
             }
             else if (self.reject(q))
             {
@@ -1051,7 +1084,7 @@ NFA.prototype = {
                 ++j; // continue
             }
         }
-        return return_match ? null : -1;
+        return [return_match ? null : -1, self.get_errors(q)];
     }
 };
 Matchy.NFA = NFA;

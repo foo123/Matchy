@@ -29,7 +29,8 @@ if not Matchy:
 
 import random
 
-NFA = Matchy.NFA
+def NFA(input, type = 'l'):
+    return Matchy.NFA(input, type)
 
 def create_string(alphabet, n):
     s = '';
@@ -39,7 +40,7 @@ def create_string(alphabet, n):
 
 def test_case(nfa, pattern, string, offset = 0):
     found = nfa.match(string, offset)
-    print('nfa("'+pattern+'", "'+string+'", '+str(offset)+') = '+str(found))
+    print('nfa("'+pattern+'", "'+string+'", '+str(offset)+') = '+str(found[0])+', errors '+str(found[1]))
 
 def test():
 

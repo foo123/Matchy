@@ -999,6 +999,40 @@ class MatchyNFA
         }
     }
 
+    public function get_errors($qe)
+    {
+        $type = $this->type;
+        $input = $this->input;
+        $q = $qe['q'];
+        $e = $qe['e'];
+        if (',' === $type)
+        {
+            $n = count($input);
+            $e = INF;
+            foreach ($q as $qi)
+            {
+                if (($qi[1]+1 === $n) && $input[$qi[1]]->accept($qi[0]))
+                {
+                    $e = min($e, $qi[0]['e'] + $qi[2]);
+                }
+            }
+        }
+        if ((',,' === $type) || (',,,' === $type))
+        {
+            $n = count($input);
+            $e = INF;
+            foreach ($q as $qi)
+            {
+                if ($input[$qi[2]]->accept($qi[0]))
+                {
+                    $e = min($e, $qi[3]);
+                }
+            }
+        }
+        if (!is_finite($e)) $e = 0;
+        return $e;
+    }
+
     public function match($string, $offset = 0, $return_match = false, $q = null)
     {
         $i = $offset;
@@ -1023,7 +1057,7 @@ class MatchyNFA
             if (($n-1 === $j) || ("\n" === $c)) $q = $this->d($q, 1);
             if ($this->accept($q))
             {
-                return $return_match ? mb_substr($string, $i, $j-$i+1, 'UTF-8') : $i; // matched
+                return array($return_match ? mb_substr($string, $i, $j-$i+1, 'UTF-8') : $i, $this->get_errors($q)); // matched
             }
             elseif ($this->reject($q))
             {
@@ -1034,7 +1068,7 @@ class MatchyNFA
                 ++$j; // continue
             }
         }
-        return $return_match ? null : -1;
+        return array($return_match ? null : -1, $this->get_errors($q));
     }
 }
 }

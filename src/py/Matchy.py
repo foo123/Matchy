@@ -549,7 +549,7 @@ class NFA:
                             qi = (input[j].d(q0, c), i+1, j, ei+(1 if 0 < i else 0))
                             q.append(qi)
                             # push next for deletion
-                            for k in range(n-j):
+                            for k in range(1, n-j):
                                 q0 = input[j+k].q0()
                                 qi = (input[j+k].d(q0, c), i+1, j+k, ei+k+(1 if 0 < i else 0))
                                 q.append(qi)
@@ -644,6 +644,26 @@ class NFA:
         if (',,' == type) or (',,,' == type):
             return len(q) == len(list(filter(lambda qi: (qi[3] > max_errors) or input[qi[2]].reject(qi[0]), q)))
 
+    def get_errors(self, qe):
+        type = self.type
+        input = self.input
+        q = qe['q']
+        e = qe['e']
+        if ',' == type:
+            n = len(input)
+            e = INF
+            for qi in q:
+                if (qi[1]+1 == n) and input[qi[1]].accept(qi[0]):
+                    e = min(e, qi[0]['e'] + qi[2])
+        if (',,' == type) or (',,,' == type):
+            n = len(input)
+            e = INF
+            for qi in q:
+                if input[qi[2]].accept(qi[0]):
+                    e = min(e, qi[3])
+        if not math.isfinite(e): e = 0
+        return e
+
     def match(self, string, offset = 0, return_match = False, q = None):
         i = offset
         j = i
@@ -663,12 +683,12 @@ class NFA:
             q = self.d(q, c)
             if (n-1 == j) or ("\n" == c): q = self.d(q, 1)
             if self.accept(q):
-                return string[i:j+1] if return_match else i # matched
+                return [string[i:j+1] if return_match else i, self.get_errors(q)] # matched
             elif self.reject(q):
                 j = n # failed, try next
             else:
                 j += 1 # continue
-        return None if return_match else -1
+        return [None if return_match else -1, self.get_errors(q)]
 
 Matchy.NFA = NFA
 

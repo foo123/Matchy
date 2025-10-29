@@ -2,8 +2,11 @@
 
 const Matchy = require('../../src/js/Matchy.js');
 const echo = console.log;
-const NFA = Matchy.NFA;
 
+function NFA(input, type = 'l')
+{
+    return new Matchy.NFA(input, type);
+}
 function create_string(alphabet, n)
 {
     let s = '';
@@ -16,7 +19,7 @@ function create_string(alphabet, n)
 function test_case(nfa, pattern, string, offset)
 {
     const found = nfa.match(string, offset || 0);
-    echo('nfa("'+pattern+'", "'+string+'", '+(offset||0)+') = '+found);
+    echo('nfa("'+pattern+'", "'+string+'", '+(offset||0)+') = '+found[0]+', errors '+found[1]);
 }
 function test()
 {
