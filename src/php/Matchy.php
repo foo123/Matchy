@@ -766,7 +766,7 @@ class MatchyNFA
                     $q0 = $input[$j]->d($qi[0], $c);
                     if (!$input[$j]->reject($q0))
                     {
-                        $qi = array($q0, $next_i, $j, $ei+($j)-($next_i));
+                        $qi = array($q0, $next_i, $j, $ei+max(0, ($j)-($next_i)));
                         $q[] = $qi;
                     }
                     else
@@ -779,7 +779,7 @@ class MatchyNFA
                         $q1 = $input[$j+$k]->d($input[$j+$k]->q0(), $c);
                         if (!$input[$j+$k]->reject($q1))
                         {
-                            $qi = array($q1, $next_i, $j+$k, $ei+($j+$k)-($next_i));
+                            $qi = array($q1, $next_i, $j+$k, $ei+max(0, ($j+$k)-($next_i)));
                             $q[] = $qi;
                         }
                     }
@@ -805,7 +805,7 @@ class MatchyNFA
                         // push next for deletion
                         for ($k=1; $j+$k<$n; ++$k)
                         {
-                            $qi = array($input[$j+$k]->d($input[$j+$k]->q0(), $c), $next_i, $j+$k, $ei+($j+$k)-($next_i)+(0 < $i ? 1 : 0));
+                            $qi = array($input[$j+$k]->d($input[$j+$k]->q0(), $c), $next_i, $j+$k, $ei+max(0, ($j+$k)-($next_i))+(0 < $i ? 1 : 0));
                             $q[] = $qi;
                         }
                     }
@@ -815,7 +815,15 @@ class MatchyNFA
                     }
                 }
             }
-            $e = 0; // handled at word level
+            $e = INF;
+            foreach ($q as $qi)
+            {
+                if (($qi[1]+1 === $n) && $input[$qi[2]]->accept($qi[0]))
+                {
+                    $e = min($e, $qi[3]);
+                }
+            }
+            if (!is_finite($e)) $e = 0;
         }
         return array('q'=>$q, 'e'=>$e); // keep track of errors
     }
@@ -992,37 +1000,7 @@ class MatchyNFA
 
     public function get_errors($qe)
     {
-        $type = $this->type;
-        $input = $this->input;
-        $q = $qe['q'];
-        $e = $qe['e'];
-        if (',' === $type)
-        {
-            $n = count($input);
-            $e = INF;
-            foreach ($q as $qi)
-            {
-                if (($qi[1]+1 === $n) && $input[$qi[1]]->accept($qi[0]))
-                {
-                    $e = min($e, $qi[0]['e'] + $qi[2]);
-                }
-            }
-        }
-        if ((',,' === $type) || (',,,' === $type))
-        {
-            $n = count($input);
-            $e = INF;
-            foreach ($q as $qi)
-            {
-                if ($input[$qi[2]]->accept($qi[0]))
-                {
-                    echo "".$qi[3]."\n";
-                    $e = min($e, $qi[3]);
-                }
-            }
-        }
-        if (!is_finite($e)) $e = 0;
-        return $e;
+        return $qe['e'];
     }
 
     public function match($string, $offset = 0, $return_match = false, $q = null)

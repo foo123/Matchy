@@ -523,7 +523,7 @@ class NFA:
                 if input[j].accept(qi[0]):
                     q0 = input[j].d(qi[0], c)
                     if not input[j].reject(q0):
-                        qi = (q0, next_i, j, ei+(j)-(next_i))
+                        qi = (q0, next_i, j, ei+max(0, (j)-(next_i)))
                         q.append(qi)
                     else:
                         q.append(qi)
@@ -531,7 +531,7 @@ class NFA:
                     for k in range(1, n-j):
                         q1 = input[j+k].d(input[j+k].q0(), c)
                         if not input[j+k].reject(q1):
-                            qi = (q1, next_i, j+k, ei+(j+k)-(next_i))
+                            qi = (q1, next_i, j+k, ei+max(0, (j+k)-(next_i)))
                             q.append(qi)
                     # push prev for transposition
                     if (',,,' == type) and (0 < j) and (i+1 == j):
@@ -547,11 +547,15 @@ class NFA:
                         q.append(qi)
                         # push next for deletion
                         for k in range(1, n-j):
-                            qi = (input[j+k].d(input[j+k].q0(), c), next_i, j+k, ei+(j+k)-(next_i)+(1 if 0 < i else 0))
+                            qi = (input[j+k].d(input[j+k].q0(), c), next_i, j+k, ei+max(0, (j+k)-(next_i))+(1 if 0 < i else 0))
                             q.append(qi)
                     else:
                         q.append(qi)
-            e = 0 # handled at word level
+            e = INF
+            for qi in q:
+                if (qi[1]+1 == n) and input[qi[2]].accept(qi[0]):
+                    e = min(e, qi[3])
+            if not math.isfinite(e): e = 0
         return {'q':q, 'e':e} # keep track of errors
 
     def accept(self, qe):
@@ -641,23 +645,7 @@ class NFA:
             return len(q) == len(list(filter(lambda qi: (qi[3] > max_errors) or input[qi[2]].reject(qi[0]), q)))
 
     def get_errors(self, qe):
-        type = self.type
-        input = self.input
-        q = qe['q']
-        e = qe['e']
-        if ',' == type:
-            n = len(input)
-            e = INF
-            for qi in q:
-                if (qi[1]+1 == n) and input[qi[1]].accept(qi[0]):
-                    e = min(e, qi[0]['e'] + qi[2])
-        if (',,' == type) or (',,,' == type):
-            e = INF
-            for qi in q:
-                if input[qi[2]].accept(qi[0]):
-                    e = min(e, qi[3])
-        if not math.isfinite(e): e = 0
-        return e
+        return qe['e']
 
     def match(self, string, offset = 0, return_match = False, q = None):
         i = offset

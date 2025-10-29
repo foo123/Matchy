@@ -784,7 +784,7 @@ NFA.prototype = {
                     q0 = input[j].d(qi[0], c);
                     if (!input[j].reject(q0))
                     {
-                        qi = [q0, next_i, j, ei+(j)-(next_i)];
+                        qi = [q0, next_i, j, ei+stdMath.max(0, (j)-(next_i))];
                         q.push(qi);
                     }
                     else
@@ -797,7 +797,7 @@ NFA.prototype = {
                         q1 = input[j+k].d(input[j+k].q0(), c);
                         if (!input[j+k].reject(q1))
                         {
-                            qi = [q1, next_i, j+k, ei+(j+k)-(next_i)];
+                            qi = [q1, next_i, j+k, ei+stdMath.max(0, (j+k)-(next_i))];
                             q.push(qi);
                         }
                     }
@@ -823,7 +823,7 @@ NFA.prototype = {
                         // push next for deletion
                         for (k=1; j+k<n; ++k)
                         {
-                            qi = [input[j+k].d(input[j+k].q0(), c), next_i, j+k, ei+(j+k)-(next_i)+(0 < i ? 1 : 0)];
+                            qi = [input[j+k].d(input[j+k].q0(), c), next_i, j+k, ei+stdMath.max(0, (j+k)-(next_i))+(0 < i ? 1 : 0)];
                             q.push(qi);
                         }
                     }
@@ -833,7 +833,14 @@ NFA.prototype = {
                     }
                 }
             });
-            e = 0; // handled at word level
+            e = Infinity;
+            q.forEach(function(qi) {
+                if ((qi[1]+1 === n) && input[qi[2]].accept(qi[0]))
+                {
+                    e = stdMath.min(e, qi[3]);
+                }
+            });
+            if (!isFinite(e)) e = 0;
         }
         return {q:q, e:e}; // keep track of errors
     },
@@ -1009,35 +1016,7 @@ NFA.prototype = {
     },
 
     get_errors: function(qe) {
-        var self = this,
-            type = self.type,
-            input = self.input,
-            q = qe['q'],
-            e = qe['e']
-        ;
-        if (',' === type)
-        {
-            var n = input.length;
-            e = Infinity;
-            q.forEach(function(qi) {
-                if ((qi[1]+1 === n) && input[qi[1]].accept(qi[0]))
-                {
-                    e = stdMath.min(e, qi[0]['e'] + qi[2]);
-                }
-            });
-        }
-        if ((',,' === type) || (',,,' === type))
-        {
-            e = Infinity;
-            q.forEach(function(qi) {
-                if (input[qi[2]].accept(qi[0]))
-                {
-                    e = stdMath.min(e, qi[3]);
-                }
-            });
-        }
-        if (!isFinite(e)) e = 0;
-        return e;
+        return qe['e'];
     },
 
     match: function(string, offset, return_match, q) {
