@@ -604,6 +604,7 @@ class MatchyNFA
                         $prev_v = $v;
                         $new_index[] = $i;
                         $new_value[] = $v;
+                        $min_e = min($min_e, $v);
                     }
                     foreach ($index as $j => $i)
                     {
@@ -710,17 +711,16 @@ class MatchyNFA
                 {
                     if ($i+1 < $n)
                     {
-                        $q0 = $input[$i]->d($qi[0], $c);
-                        if (!$input[$i]->reject($q0))
+                        $q1 = $input[$i]->d($qi[0], $c);
+                        if (!$input[$i]->reject($q1))
                         {
-                            $qi = array($q0, $i, $ei);
+                            $qi = array($q1, $i, $ei);
                             $q[] = $qi;
                         }
                         $q1 = $input[$i+1]->d($input[$i+1]->q0(), $c);
                         if (!$input[$i+1]->reject($q1))
                         {
-                            ++$i;
-                            $qi = array($q1, $i, $ei+$e0);
+                            $qi = array($q1, $i+1, $ei+$e0);
                             $q[] = $qi;
                         }
                     }
@@ -763,10 +763,10 @@ class MatchyNFA
                 $ei = $qi[3];
                 if ($input[$j]->accept($qi[0]))
                 {
-                    $q0 = $input[$j]->d($qi[0], $c);
-                    if (!$input[$j]->reject($q0))
+                    $q1 = $input[$j]->d($qi[0], $c);
+                    if (!$input[$j]->reject($q1))
                     {
-                        $qi = array($q0, $next_i, $j, $ei+max(0, ($j)-($next_i)));
+                        $qi = array($q1, $i, $j, $ei);
                         $q[] = $qi;
                     }
                     else
@@ -779,7 +779,7 @@ class MatchyNFA
                         $q1 = $input[$j+$k]->d($input[$j+$k]->q0(), $c);
                         if (!$input[$j+$k]->reject($q1))
                         {
-                            $qi = array($q1, $next_i, $j+$k, $ei+max(0, ($j+$k)-($next_i)));
+                            $qi = array($q1, $next_i, $j+$k, $ei+abs($j+$k-$next_i));
                             $q[] = $qi;
                         }
                     }
@@ -789,32 +789,35 @@ class MatchyNFA
                         $q1 = $input[$j-1]->d($input[$j-1]->q0(), $c);
                         if (!$input[$j-1]->reject($q1))
                         {
-                            $qi = array($q1, $i+1, $j-1, $ei-1+1); // carries the previous error of deletion
+                            $qi = array($q1, $next_i, $j-1, $ei-1+1); // carries the previous error of deletion
                             $q[] = $qi;
                         }
                     }
                 }
                 else
                 {
-                    $qi = array($input[$j]->d($qi[0], $c), $i, $j, $ei);
-                    if ($input[$j]->reject($qi[0]))
+                    $q1 = $input[$j]->d($qi[0], $c);
+                    if ($input[$j]->reject($q1))
                     {
-                        // push again for insertion, substitution
-                        $qi = array($input[$j]->d($input[$j]->q0(), $c), $next_i, $j, $ei+(0 < $i ? 1 : 0));
-                        $q[] = $qi;
-                        // push next for deletion
-                        for ($k=1; $j+$k<$n; ++$k)
+                        // push next for insertion, substitution, deletion
+                        for ($k=0; $j+$k<$n; ++$k)
                         {
-                            $qi = array($input[$j+$k]->d($input[$j+$k]->q0(), $c), $next_i, $j+$k, $ei+max(0, ($j+$k)-($next_i))+(0 < $i ? 1 : 0));
-                            $q[] = $qi;
+                            $q1 = $input[$j+$k]->d($input[$j+$k]->q0(), $c);
+                            if (!$input[$j+$k]->reject($q1))
+                            {
+                                $qi = array($q1, $next_i, $j+$k, $ei+abs($j+$k-$next_i));
+                                $q[] = $qi;
+                            }
                         }
                     }
                     else
                     {
+                        $qi = array($q1, $i, $j, $ei);
                         $q[] = $qi;
                     }
                 }
             }
+            $e0 = $e;
             $e = INF;
             foreach ($q as $qi)
             {
@@ -823,7 +826,7 @@ class MatchyNFA
                     $e = min($e, $qi[3]);
                 }
             }
-            if (!is_finite($e)) $e = 0;
+            if (!is_finite($e)) $e = $e0+1;
         }
         return array('q'=>$q, 'e'=>$e); // keep track of errors
     }

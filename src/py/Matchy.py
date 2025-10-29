@@ -421,6 +421,7 @@ class NFA:
                         prev_v = v
                         new_index.append(i)
                         new_value.append(v)
+                        min_e = min(min_e, v)
 
                     for j, i in enumerate(index):
                         if i >= n: break
@@ -489,14 +490,13 @@ class NFA:
                 e0 = qi[0]['e']
                 if input[i].accept(qi[0]):
                     if i+1 < n:
-                        q0 = input[i].d(qi[0], c)
-                        q1 = input[i+1].d(input[i+1].q0(), c)
-                        if not input[i].reject(q0):
-                            qi = (q0, i, ei)
+                        q1 = input[i].d(qi[0], c)
+                        if not input[i].reject(q1):
+                            qi = (q1, i, ei)
                             q.append(qi)
+                        q1 = input[i+1].d(input[i+1].q0(), c)
                         if not input[i+1].reject(q1):
-                            i += 1
-                            qi = (q1, i, ei+e0)
+                            qi = (q1, i+1, ei+e0)
                             q.append(qi)
                     else:
                         q.append(qi)
@@ -521,9 +521,9 @@ class NFA:
                 next_i = i+1 if i+1 < n else i
                 ei = qi[3]
                 if input[j].accept(qi[0]):
-                    q0 = input[j].d(qi[0], c)
-                    if not input[j].reject(q0):
-                        qi = (q0, next_i, j, ei+max(0, (j)-(next_i)))
+                    q1 = input[j].d(qi[0], c)
+                    if not input[j].reject(q1):
+                        qi = (q1, i, j, ei)
                         q.append(qi)
                     else:
                         q.append(qi)
@@ -531,31 +531,32 @@ class NFA:
                     for k in range(1, n-j):
                         q1 = input[j+k].d(input[j+k].q0(), c)
                         if not input[j+k].reject(q1):
-                            qi = (q1, next_i, j+k, ei+max(0, (j+k)-(next_i)))
+                            qi = (q1, next_i, j+k, ei+abs(j+k-next_i))
                             q.append(qi)
                     # push prev for transposition
                     if (',,,' == type) and (0 < j) and (i+1 == j):
                         q1 = input[j-1].d(input[j-1].q0(), c)
                         if not input[j-1].reject(q1):
-                            qi = (q1, i+1, j-1, ei-1+1) # carries the previous error of deletion
+                            qi = (q1, next_i, j-1, ei-1+1) # carries the previous error of deletion
                             q.append(qi)
                 else:
-                    qi = (input[j].d(qi[0], c), i, j, ei)
-                    if input[j].reject(qi[0]):
-                        # push again for insertion, substitution
-                        qi = (input[j].d(input[j].q0(), c), next_i, j, ei+(1 if 0 < i else 0))
-                        q.append(qi)
-                        # push next for deletion
-                        for k in range(1, n-j):
-                            qi = (input[j+k].d(input[j+k].q0(), c), next_i, j+k, ei+max(0, (j+k)-(next_i))+(1 if 0 < i else 0))
-                            q.append(qi)
+                    q1 = input[j].d(qi[0], c)
+                    if input[j].reject(q1):
+                        # push next for insertion, substitution, deletion
+                        for k in range(0, n-j):
+                            q1 = input[j+k].d(input[j+k].q0(), c)
+                            if not input[j+k].reject(q1):
+                                qi = (q1, next_i, j+k, ei+abs(j+k-next_i))
+                                q.append(qi)
                     else:
+                        qi = (q1, i, j, ei)
                         q.append(qi)
+            e0 = e
             e = INF
             for qi in q:
                 if (qi[1]+1 == n) and input[qi[2]].accept(qi[0]):
                     e = min(e, qi[3])
-            if not math.isfinite(e): e = 0
+            if not math.isfinite(e): e = e0+1
         return {'q':q, 'e':e} # keep track of errors
 
     def accept(self, qe):
