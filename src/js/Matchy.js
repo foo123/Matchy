@@ -248,7 +248,7 @@ Matchy.prototype = {
                     }
                     else
                     {
-                        i += shift[j+1];
+                        i += stdMath.max(1, shift[j+1]);
                     }
                 }
             }
@@ -1062,7 +1062,7 @@ NFA.prototype = {
         return qe['e'];
     },
 
-    match: function(string, offset, return_match, q) {
+    match_with_errors: function(string, offset, return_match, q) {
         var self = this;
         var i = offset || 0,
             j = i,
@@ -1087,7 +1087,7 @@ NFA.prototype = {
             if (self.accept(q))
             {
                 e = self.get_errors(q);
-                return [return_match ? string.slice(i, j+1) : i, e]; // matched
+            return {'match' : return_match ? string.slice(i, j+1) : i, 'errors' : e}; // matched
             }
             else if (self.reject(q))
             {
@@ -1099,7 +1099,12 @@ NFA.prototype = {
                 ++j; // continue
             }
         }
-        return [return_match ? null : -1, e];
+        return {'match' : return_match ? null : -1, 'errors' : e};
+    },
+
+    match: function(string, offset, return_match, return_err, q) {
+        var match = this.match_with_errors(string, offset, return_match, q);
+        return return_err ? match : match['match'];
     }
 };
 Matchy.NFA = NFA;

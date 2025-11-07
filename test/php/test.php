@@ -46,11 +46,13 @@ function test()
             test_case($matchy, $algorithm, $pattern, $string);
         }
     }
+
     /*
     // problematic
     echo("\n");
     echo('problematic'."\n");
     $problematic = [
+    ['boyermoore', "bbbbb", "aabaabbbbb"],
     ['twoway', "babab", "aababababb"],
     ['twoway', "babab", "baaabababb"],
     ['boyermoore', "babab", "aababababb"],

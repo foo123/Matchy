@@ -18,8 +18,8 @@ function create_string(alphabet, n)
 }
 function test_case(nfa, pattern, string, offset)
 {
-    const found = nfa.match(string, offset || 0);
-    echo('nfa("'+pattern+'", "'+string+'", '+(offset||0)+') = '+found[0]+', errors '+found[1]);
+    const found = nfa.match(string, offset || 0, false, true);
+    echo('nfa("'+pattern+'", "'+string+'", '+(offset||0)+') = '+found['match']+', errors '+found['errors']);
 }
 function test()
 {

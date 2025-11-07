@@ -235,7 +235,7 @@ class Matchy
                     }
                     else
                     {
-                        $i += $shift[$j+1];
+                        $i += max(1, $shift[$j+1]);
                     }
                 }
             }
@@ -1046,7 +1046,7 @@ class MatchyNFA
         return $qe['e'];
     }
 
-    public function match($string, $offset = 0, $return_match = false, $q = null)
+    public function match_with_errors($string, $offset = 0, $return_match = false, $q = null)
     {
         $i = $offset;
         $j = $i;
@@ -1072,7 +1072,7 @@ class MatchyNFA
             if ($this->accept($q))
             {
                 $e = $this->get_errors($q);
-                return array($return_match ? mb_substr($string, $i, $j-$i+1, 'UTF-8') : $i, $e); // matched
+                return array('match' => $return_match ? mb_substr($string, $i, $j-$i+1, 'UTF-8') : $i, 'errors' => $e); // matched
             }
             elseif ($this->reject($q))
             {
@@ -1084,7 +1084,13 @@ class MatchyNFA
                 ++$j; // continue
             }
         }
-        return array($return_match ? null : -1, $e);
+        return array('match' => $return_match ? null : -1, 'errors' => $e);
+    }
+
+    public function match($string, $offset = 0, $return_match = false, $return_err = false, $q = null)
+    {
+        $match = $this->match_with_errors($string, $offset, $return_match, $q);
+        return $return_err ? $match : $match['match'];
     }
 }
 }

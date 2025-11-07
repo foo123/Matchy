@@ -39,8 +39,8 @@ def create_string(alphabet, n):
     return s
 
 def test_case(nfa, pattern, string, offset = 0):
-    found = nfa.match(string, offset)
-    print('nfa("'+pattern+'", "'+string+'", '+str(offset)+') = '+str(found[0])+', errors '+str(found[1]))
+    found = nfa.match(string, offset, False, True)
+    print('nfa("'+pattern+'", "'+string+'", '+str(offset)+') = '+str(found['match'])+', errors '+str(found['errors']))
 
 def test():
 

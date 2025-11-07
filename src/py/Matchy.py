@@ -184,7 +184,7 @@ class Matchy:
                     if 0 > j:
                         return pattern if return_match else i # matched
                     else:
-                        i += shift[j+1]
+                        i += max(1, shift[j+1])
             return None if return_match else -1
 
         return matcher if string is None else matcher(string, offset, return_match)
@@ -669,7 +669,7 @@ class NFA:
     def get_errors(self, qe):
         return qe['e']
 
-    def match(self, string, offset = 0, return_match = False, q = None):
+    def match_with_errors(self, string, offset = 0, return_match = False, q = None):
         i = offset
         j = i
         n = len(string)
@@ -690,13 +690,17 @@ class NFA:
             if (n-1 == j) or ("\n" == c): q = self.d(q, 1)
             if self.accept(q):
                 e = self.get_errors(q)
-                return [string[i:j+1] if return_match else i, e] # matched
+                return {'match' : string[i:j+1] if return_match else i, 'errors' : e} # matched
             elif self.reject(q):
                 e = max(e, self.get_errors(q))
                 j = n # failed, try next
             else:
                 j += 1 # continue
-        return [None if return_match else -1, e]
+        return {'match' : None if return_match else -1, 'errors' : e}
+
+    def match(self, string, offset = 0, return_match = False, return_err = False, q = None):
+        match = self.match_with_errors(string, offset, return_match, q);
+        return match if return_err else match['match']
 
 Matchy.NFA = NFA
 

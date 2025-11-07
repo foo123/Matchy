@@ -16,8 +16,8 @@ function create_string($alphabet, $n)
 }
 function test_case($nfa, $pattern, $string, $match, $errors)
 {
-    $found = $nfa->match($string);
-    echo('fuzzynfa("'.$pattern.'", "'.$string.'") = '.$found[0].", errors ".$found[1]." (expected ".$match.", errors ".$errors.")"."\n");
+    $found = $nfa->match($string, 0, false, true);
+    echo('fuzzynfa("'.$pattern.'", "'.$string.'") = '.$found['match'].", errors ".$found['errors']." (expected ".$match.", errors ".$errors.")"."\n");
 }
 function test()
 {
@@ -29,7 +29,7 @@ function test()
     test_case($test['nfa'], $test['pattern'], "aabababbbb", 0, 2); // 2 errors
     test_case($test['nfa'], $test['pattern'], "baabaaabbb", 0, 2); // 2 errors
     echo("\n");
-    
+
     $test = ['pattern'=>'(aaa)(bbb)', 'nfa'=>NFA(NFA([NFA('aaa'), NFA('bbb')], ','), ['total_errors'=>1,'word_level'=>true])];
     test_case($test['nfa'], $test['pattern'], "aaabbb", 0, 0); // 0 errors
     test_case($test['nfa'], $test['pattern'], "bbbaaa", 0, 1); // 1 errors, deletion
@@ -38,17 +38,17 @@ function test()
     test_case($test['nfa'], $test['pattern'], "aacbbb", 3, 1); // 1 errors, deletion or substitution
     test_case($test['nfa'], $test['pattern'], "aaacbbb", 0, 1); // 1 errors, insertion
     echo("\n");
-   
+
     $test = ['pattern'=>'^(aaa)(bbb)$', 'nfa'=>NFA(NFA([NFA('', '^'), NFA('aaa'), NFA('bbb'), NFA('', '$')], ','), ['total_errors'=>1,'word_level'=>true,'transpositions'=>true])];
     test_case($test['nfa'], $test['pattern'], "aaabbb", 0, 0); // 0 errors
     test_case($test['nfa'], $test['pattern'], "bbbaaa", 0, 1); // 1 errors, transposition
-    
+
     test_case($test['nfa'], $test['pattern'], "bbb", 0, 1); // 1 errors, deletion
     test_case($test['nfa'], $test['pattern'], "cbbb", 0, 1); // 1 errors, substitution
     test_case($test['nfa'], $test['pattern'], "aacbbb", 0, 1); // 1 errors, substitution
     test_case($test['nfa'], $test['pattern'], "aaacbbb", 0, 1); // 1 errors, insertion
     echo("\n");
-    
+
 }
 
 test();

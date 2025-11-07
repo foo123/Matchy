@@ -57,17 +57,18 @@ def test():
     ]
 
     for i in range(10):
-        string = create_string(['a', 'b'], 10) #['a', 'b', 'c', 'd']
-        pattern = create_pattern(string, 5)
+       string = create_string(['a', 'b'], 10) #['a', 'b', 'c', 'd']
+       pattern = create_pattern(string, 5)
 
-        print()
-        for algorithm in algorithms:
-            test_case(matchy, algorithm, pattern, string)
+       print()
+       for algorithm in algorithms:
+           test_case(matchy, algorithm, pattern, string)
 
     ## problematic
     #print()
     #print('problematic')
     #problematic = [
+    #['boyermoore', "bbbbb", "aabaabbbbb"],
     #['twoway', "babab", "aababababb"],
     #['twoway', "babab", "baaabababb"],
     #['boyermoore', "babab", "aababababb"],

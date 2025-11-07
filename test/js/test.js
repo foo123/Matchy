@@ -45,17 +45,20 @@ function test()
         echo();
         algorithms.forEach(algorithm => test_case(matchy, algorithm, pattern, string));
     }
+
     /*
     // problematic
     echo();
     echo('problematic');
     ([
+    ['boyermoore', "bbbbb", "aabaabbbbb"],
     ['twoway', "babab", "aababababb"],
     ['twoway', "babab", "baaabababb"],
     ['boyermoore', "babab", "aababababb"],
     ['boyermoore', "abaaa", "baabaaabab"]
     ]).forEach(entry => test_case(matchy, entry[0], entry[1], entry[2]));
     */
+
 }
 
 test();

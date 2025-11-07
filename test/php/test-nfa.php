@@ -16,8 +16,8 @@ function create_string($alphabet, $n)
 }
 function test_case($nfa, $pattern, $string, $offset = 0)
 {
-    $found = $nfa->match($string, $offset);
-    echo('nfa("'.$pattern.'", "'.$string.'", '.$offset.') = '.$found[0].', errors '.$found[1]."\n");
+    $found = $nfa->match($string, $offset, false, true);
+    echo('nfa("'.$pattern.'", "'.$string.'", '.$offset.') = '.$found['match'].', errors '.$found['errors']."\n");
 }
 function test()
 {
