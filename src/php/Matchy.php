@@ -517,6 +517,10 @@ class MatchyNFA
         {
             $q = 0;
         }
+        if ('c' === $type)
+        {
+            $q = 0;
+        }
         if ('^' === $type)
         {
             $q = false;
@@ -545,7 +549,7 @@ class MatchyNFA
             for ($i=0,$n=count($input); $i<$n; ++$i)
             {
                 // push for insertion, deletion, substitution, transposition
-                $q[] = array($input[$i]->q0(), 0, $i, $i);
+                $q[] = array($input[$i]->q0(), 0, $i, $i, 0, 0);
             }
         }
         return array('q'=>$q, 'e'=>0); // keep track of errors
@@ -669,6 +673,17 @@ class MatchyNFA
                 $q = $q < mb_strlen($input, 'UTF-8') ? ($c === mb_substr($input, $q, 1, 'UTF-8') ? $q+1 : 0) : 0;
             }
         }
+        if ('c' === $type)
+        {
+            if (is_int($c))
+            {
+                //$q = $q;
+            }
+            else
+            {
+                $q = false !== mb_strpos($input, $c, 0, 'UTF-8') ? 1 : 0;
+            }
+        }
         if ('^' === $type)
         {
             $q = is_int($c) && (0 === $c);
@@ -693,7 +708,7 @@ class MatchyNFA
             }, array_keys($input));
             foreach ($q as $i => $qi)
             {
-                if (!$input[$i]->reject($qi)) $e = min($e, $qi['e']);
+                if ($input[$i]->accept($qi)) $e = min($e, $qi['e']);
             }
             if (!is_finite($e)) $e = $e0+1;
         }
@@ -735,7 +750,7 @@ class MatchyNFA
                     $q[] = $qi;
                 }
             }
-            $last_i = 0;
+            $last_i = -1;
             foreach ($q as $qi)
             {
                 $i = $qi[1];
@@ -759,39 +774,51 @@ class MatchyNFA
             {
                 $i = $qi[1];
                 $j = $qi[2];
-                $next_i = $i+1 < $n ? $i+1 : $i;
-                $ei = $qi[3];
+                $si = $qi[3]; // sub/ins
+                $d = $qi[4];  // del
+                $t = $qi[5];  // trans
                 if ($input[$j]->accept($qi[0]))
                 {
-                    $q1 = $input[$j]->d($qi[0], $c);
-                    if (!$input[$j]->reject($q1))
+                    if ($i+1 < $n)
                     {
-                        $qi = array($q1, $i, $j, $ei);
-                        $q[] = $qi;
+                        $q1 = $input[$j]->d($qi[0], $c);
+                        if (!$input[$j]->reject($q1))
+                        {
+                            $qi = array($q1, $i, $j, $si, $d, $t);
+                            $q[] = $qi;
+                        }
+                        if (!$t)
+                        {
+                            for ($k=1; $j+$k<$n; ++$k)
+                            {
+                                $q0 = $input[$j+$k]->q0();
+                                $q1 = $input[$j+$k]->d($q0, $c);
+                                if (!$input[$j+$k]->reject($q1))
+                                {
+                                    $qi = array($q1, $i+1, $j+$k, $si, $d+$k-1, 0);
+                                }
+                                else
+                                {
+                                    $qi = array($q0, $i+1, $j+$k, 1, $d+$k-1, 0);
+                                }
+                                $q[] = $qi;
+                            }
+                            // push transposition
+                            if ((',,,' === $type) && (0 < $j) && ($i+1 === $j))
+                            {
+                                $q0 = $input[$j-1]->q0();
+                                $q1 = $input[$j-1]->d($q0, $c);
+                                if (!$input[$j-1]->reject($q1))
+                                {
+                                    $qi = array($q1, $i+1, $j-1, $si, $d, 1);
+                                    $q[] = $qi;
+                                }
+                            }
+                        }
                     }
                     else
                     {
                         $q[] = $qi;
-                    }
-                    // push next for insertion, deletion, substitution
-                    for ($k=1; $j+$k<$n; ++$k)
-                    {
-                        $q1 = $input[$j+$k]->d($input[$j+$k]->q0(), $c);
-                        if (!$input[$j+$k]->reject($q1))
-                        {
-                            $qi = array($q1, $next_i, $j+$k, $ei+abs($j+$k-$next_i));
-                            $q[] = $qi;
-                        }
-                    }
-                    // push prev for transposition
-                    if ((',,,' === $type) && (0 < $j) && ($i+1 === $j))
-                    {
-                        $q1 = $input[$j-1]->d($input[$j-1]->q0(), $c);
-                        if (!$input[$j-1]->reject($q1))
-                        {
-                            $qi = array($q1, $next_i, $j-1, $ei-1+1); // carries the previous error of deletion
-                            $q[] = $qi;
-                        }
                     }
                 }
                 else
@@ -799,20 +826,27 @@ class MatchyNFA
                     $q1 = $input[$j]->d($qi[0], $c);
                     if ($input[$j]->reject($q1))
                     {
-                        // push next for insertion, substitution, deletion
-                        for ($k=0; $j+$k<$n; ++$k)
+                        if (!$t)
                         {
-                            $q1 = $input[$j+$k]->d($input[$j+$k]->q0(), $c);
-                            if (!$input[$j+$k]->reject($q1))
+                            for ($k=0; $j+$k<$n; ++$k)
                             {
-                                $qi = array($q1, $next_i, $j+$k, $ei+abs($j+$k-$next_i));
+                                $q0 = $input[$j+$k]->q0();
+                                $q1 = $input[$j+$k]->d($q0, $c);
+                                if (!$input[$j+$k]->reject($q1))
+                                {
+                                    $qi = array($q1, $i, $j+$k, 1, $d+$k, 0);
+                                }
+                                else
+                                {
+                                    $qi = array($q0, $i, $j+$k, 1, $d+$k, 0);
+                                }
                                 $q[] = $qi;
                             }
                         }
                     }
                     else
                     {
-                        $qi = array($q1, $i, $j, $ei);
+                        $qi = array($q1, $i, $j, $si, $d, $t);
                         $q[] = $qi;
                     }
                 }
@@ -821,9 +855,9 @@ class MatchyNFA
             $e = INF;
             foreach ($q as $qi)
             {
-                if (($qi[1]+1 === $n) && $input[$qi[2]]->accept($qi[0]))
+                if ($input[$qi[2]]->accept($qi[0]))
                 {
-                    $e = min($e, $qi[3]);
+                    $e = min($e, $qi[3]+$qi[4]+$n-1-max($qi[1], $qi[2]));
                 }
             }
             if (!is_finite($e)) $e = $e0+1;
@@ -856,6 +890,10 @@ class MatchyNFA
         {
             return $q === mb_strlen($input, 'UTF-8');
         }
+        if ('c' === $type)
+        {
+            return $q === 1;
+        }
         if ('^' === $type)
         {
             return $q;
@@ -885,7 +923,7 @@ class MatchyNFA
         {
             $n = count($input);
             return 0 < count(array_filter($q, function($qi) use ($n, $input) {
-                return ($qi[1]+1 === $n) && $input[$qi[2]]->accept($qi[0]);
+                return $input[$qi[2]]->accept($qi[0]);
             }));
         }
     }
@@ -912,6 +950,10 @@ class MatchyNFA
             }
         }
         if ('l' === $type)
+        {
+            return 0 === $q;
+        }
+        if ('c' === $type)
         {
             return 0 === $q;
         }
@@ -970,7 +1012,7 @@ class MatchyNFA
         {
             $n = count($input);
             return 0 < count(array_filter($q, function($qi) use ($n, $input, $max_errors) {
-                return ($qi[1]+1 === $n) && ($qi[3] <= $max_errors) && $input[$qi[2]]->accept($qi[0]);
+                return ($qi[3]+$qi[4]+$n-1-max($qi[1], $qi[2]) <= $max_errors) && $input[$qi[2]]->accept($qi[0]);
             }));
         }
     }
@@ -995,9 +1037,7 @@ class MatchyNFA
         }
         if ((',,' === $type) || (',,,' === $type))
         {
-            return count($q) === count(array_filter($q, function($qi) use ($input, $max_errors) {
-                return ($qi[3] > $max_errors) || $input[$qi[2]]->reject($qi[0]);
-            }));
+            return false;
         }
     }
 

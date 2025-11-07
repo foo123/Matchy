@@ -533,6 +533,10 @@ NFA.prototype = {
         {
             q = 0;
         }
+        if ('c' === type)
+        {
+            q = 0;
+        }
         if ('^' === type)
         {
             q = false;
@@ -559,7 +563,7 @@ NFA.prototype = {
             for (var i=0,n=input.length; i<n; ++i)
             {
                 // push for insertion, deletion, substitution, transposition
-                q.push([input[i].q0(), 0, i, i]);
+                q.push([input[i].q0(), 0, i, i, 0, 0]);
             }
         }
         return {q:q, e:0}; // keep track of errors
@@ -569,8 +573,8 @@ NFA.prototype = {
         var self = this,
             type = self.type,
             input = self.input,
-            q = qe.q,
-            e = qe.e;
+            q = qe['q'],
+            e = qe['e'];
         if (is_obj(type))
         {
             if (isset(type, 'min'))
@@ -690,6 +694,17 @@ NFA.prototype = {
                 q = q < input.length ? (c === input.charAt(q) ? q+1 : 0) : 0;
             }
         }
+        if ('c' === type)
+        {
+            if (is_number(c))
+            {
+                // q = q;
+            }
+            else
+            {
+                q = -1 < input.indexOf(c) ? 1 : 0;
+            }
+        }
         if ('^' === type)
         {
             q = is_number(c) && (0 === c);
@@ -713,7 +728,7 @@ NFA.prototype = {
                 return nfa.d(q[i], c);
             });
             q.forEach(function(qi, i) {
-                if (!input[i].reject(qi)) e = stdMath.min(e, qi['e']);
+                if (input[i].accept(qi)) e = stdMath.min(e, qi['e']);
             });
             if (!isFinite(e)) e = e0+1;
         }
@@ -754,7 +769,7 @@ NFA.prototype = {
                     q.push(qi);
                 }
             });
-            last_i = 0;
+            last_i = -1;
             q.forEach(function(qi) {
                 var i = qi[1];
                 if (i > last_i)
@@ -775,41 +790,53 @@ NFA.prototype = {
             qq.forEach(function(qi) {
                 var i = qi[1],
                     j = qi[2],
-                    ei = qi[3],
-                    next_i = i+1 < n ? i+1 : i,
-                    q1, k
+                    si = qi[3], // sub/ins
+                    d = qi[4],  // del
+                    t = qi[5],  // trans
+                    q0, q1, k
                 ;
                 if (input[j].accept(qi[0]))
                 {
-                    q1 = input[j].d(qi[0], c);
-                    if (!input[j].reject(q1))
+                    if (i+1 < n)
                     {
-                        qi = [q1, i, j, ei];
-                        q.push(qi);
+                        q1 = input[j].d(qi[0], c);
+                        if (!input[j].reject(q1))
+                        {
+                            qi = [q1, i, j, si, d, t];
+                            q.push(qi);
+                        }
+                        if (!t)
+                        {
+                            for (k=1; j+k<n; ++k)
+                            {
+                                q0 = input[j+k].q0();
+                                q1 = input[j+k].d(q0, c);
+                                if (!input[j+k].reject(q1))
+                                {
+                                    qi = [q1, i+1, j+k, si, d+k-1, 0];
+                                }
+                                else
+                                {
+                                    qi = [q0, i+1, j+k, 1, d+k-1, 0];
+                                }
+                                q.push(qi);
+                            }
+                            // push transposition
+                            if ((',,,' === type) && (0 < j) && (i+1 === j))
+                            {
+                                q0 = input[j-1].q0();
+                                q1 = input[j-1].d(q0, c);
+                                if (!input[j-1].reject(q1))
+                                {
+                                    qi = [q1, i+1, j-1, si, d, 1];
+                                    q.push(qi);
+                                }
+                            }
+                        }
                     }
                     else
                     {
                         q.push(qi);
-                    }
-                    // push next for insertion, deletion, substitution
-                    for (k=1; j+k<n; ++k)
-                    {
-                        q1 = input[j+k].d(input[j+k].q0(), c);
-                        if (!input[j+k].reject(q1))
-                        {
-                            qi = [q1, next_i, j+k, ei+stdMath.abs(j+k-next_i)];
-                            q.push(qi);
-                        }
-                    }
-                    // push prev for transposition
-                    if ((',,,' === type) && (0 < j) && (i+1 === j))
-                    {
-                        q1 = input[j-1].d(input[j-1].q0(), c);
-                        if (!input[j-1].reject(q1))
-                        {
-                            qi = [q1, next_i, j-1, ei-1+1]; // carries the previous error of deletion
-                            q.push(qi);
-                        }
                     }
                 }
                 else
@@ -817,20 +844,27 @@ NFA.prototype = {
                     q1 = input[j].d(qi[0], c);
                     if (input[j].reject(q1))
                     {
-                        // push next for insertion, substitution, deletion
-                        for (k=0; j+k<n; ++k)
+                        if (!t)
                         {
-                            q1 = input[j+k].d(input[j+k].q0(), c);
-                            if (!input[j+k].reject(q1))
+                            for (k=0; j+k<n; ++k)
                             {
-                                qi = [q1, next_i, j+k, ei+stdMath.abs(j+k-next_i)];
+                                q0 = input[j+k].q0();
+                                q1 = input[j+k].d(q0, c);
+                                if (!input[j+k].reject(q1))
+                                {
+                                    qi = [q1, i, j+k, 1, d+k, 0];
+                                }
+                                else
+                                {
+                                    qi = [q0, i, j+k, 1, d+k, 0];
+                                }
                                 q.push(qi);
                             }
                         }
                     }
                     else
                     {
-                        qi = [q1, i, j, ei];
+                        qi = [q1, i, j, si, d, t];
                         q.push(qi);
                     }
                 }
@@ -838,9 +872,9 @@ NFA.prototype = {
             e0 = e;
             e = Infinity;
             q.forEach(function(qi) {
-                if ((qi[1]+1 === n) && input[qi[2]].accept(qi[0]))
+                if (input[qi[2]].accept(qi[0]))
                 {
-                    e = stdMath.min(e, qi[3]);
+                    e = stdMath.min(e, qi[3]+qi[4]+n-1-stdMath.max(qi[1], qi[2]));
                 }
             });
             if (!isFinite(e)) e = e0+1;
@@ -852,8 +886,8 @@ NFA.prototype = {
         var self = this,
             type = self.type,
             input = self.input,
-            q = qe.q,
-            e = qe.e;
+            q = qe['q'],
+            e = qe['e'];
         if (is_obj(type))
         {
             if (isset(type, 'min'))
@@ -872,6 +906,10 @@ NFA.prototype = {
         if ('l' === type)
         {
             return q === input.length;
+        }
+        if ('c' === type)
+        {
+            return q === 1;
         }
         if ('^' === type)
         {
@@ -902,7 +940,7 @@ NFA.prototype = {
         {
             var n = input.length;
             return 0 < q.filter(function(qi) {
-                return (qi[1]+1 === n) && input[qi[2]].accept(qi[0]);
+                return input[qi[2]].accept(qi[0]);
             }).length;
         }
     },
@@ -911,8 +949,8 @@ NFA.prototype = {
         var self = this,
             type = self.type,
             input = self.input,
-            q = qe.q,
-            e = qe.e;
+            q = qe['q'],
+            e = qe['e'];
         if (is_obj(type))
         {
             if (isset(type, 'min'))
@@ -929,6 +967,10 @@ NFA.prototype = {
             }
         }
         if ('l' === type)
+        {
+            return 0 === q;
+        }
+        if ('c' === type)
         {
             return 0 === q;
         }
@@ -987,7 +1029,7 @@ NFA.prototype = {
         {
             var n = input.length;
             return 0 < q.filter(function(qi) {
-                return (qi[1]+1 === n) && (qi[3] <= max_errors) && input[qi[2]].accept(qi[0]);
+                return (qi[3]+qi[4]+n-1-stdMath.max(qi[1], qi[2]) <= max_errors) && input[qi[2]].accept(qi[0]);
             }).length;
         }
     },
@@ -1012,9 +1054,7 @@ NFA.prototype = {
         }
         if ((',,' === type) || (',,,' === type))
         {
-            return q.length === q.filter(function(qi) {
-                return (qi[3] > max_errors) || input[qi[2]].reject(qi[0]);
-            }).length;
+            return false;
         }
     },
 

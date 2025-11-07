@@ -51,13 +51,16 @@ def test():
     test_case(test['nfa'], test['pattern'], "abababab", -1, 3) # 3 errors
     test_case(test['nfa'], test['pattern'], "aabababbbb", 0, 2) # 2 errors
     test_case(test['nfa'], test['pattern'], "baabaaabbb", 0, 2) # 2 errors
+    print()
     
     test = {'pattern':'(aaa)(bbb)', 'nfa':NFA(NFA([NFA('aaa'), NFA('bbb')], ','), {'total_errors':1,'word_level':True})}
     test_case(test['nfa'], test['pattern'], "aaabbb", 0, 0) # 0 errors
+    test_case(test['nfa'], test['pattern'], "bbbaaa", 0, 1) # 1 errors, deletion
     test_case(test['nfa'], test['pattern'], "bbb", 0, 1) # 1 errors, deletion
     test_case(test['nfa'], test['pattern'], "cbbb", 1, 1) # 1 errors, deletion or substitution
     test_case(test['nfa'], test['pattern'], "aacbbb", 3, 1) # 1 errors, deletion or substitution
     test_case(test['nfa'], test['pattern'], "aaacbbb", 0, 1) # 1 errors, insertion
+    print()
    
     test = {'pattern':'^(aaa)(bbb)$', 'nfa':NFA(NFA([NFA('', '^'), NFA('aaa'), NFA('bbb'), NFA('', '$')], ','), {'total_errors':1,'word_level':True,'transpositions':True})}
     test_case(test['nfa'], test['pattern'], "aaabbb", 0, 0) # 0 errors
@@ -66,5 +69,6 @@ def test():
     test_case(test['nfa'], test['pattern'], "cbbb", 0, 1) # 1 errors, substitution
     test_case(test['nfa'], test['pattern'], "aacbbb", 0, 1) # 1 errors, substitution
     test_case(test['nfa'], test['pattern'], "aaacbbb", 0, 1) # 1 errors, insertion
+    print()
 
 test()
