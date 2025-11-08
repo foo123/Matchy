@@ -49,6 +49,7 @@ function test()
     test_case(test.nfa, test.pattern, "cbbb", 0, 1); // 1 errors, substitution
     test_case(test.nfa, test.pattern, "aacbbb", 0, 1); // 1 errors, substitution
     test_case(test.nfa, test.pattern, "aaacbbb", 0, 1); // 1 errors, insertion
+    test_case(test.nfa, test.pattern, "cccbbb", 0, 1); // 1 errors, substitution
     echo();
 }
 

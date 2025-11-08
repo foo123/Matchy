@@ -670,7 +670,7 @@ class MatchyNFA
         {
             if (is_int($c))
             {
-                $q = 0 === $q ? 0.1 : $q;
+                $q = 0 == $q ? 0.1 : $q;
             }
             else
             {
@@ -682,7 +682,7 @@ class MatchyNFA
         {
             if (is_int($c))
             {
-                $q = 0 === $q ? 0.1 : $q;
+                $q = 0 == $q ? 0.1 : $q;
             }
             else
             {
@@ -693,7 +693,7 @@ class MatchyNFA
         {
             if (is_int($c))
             {
-                $q = 0 === $q ? 0.1 : $q;
+                $q = 0 == $q ? 0.1 : $q;
             }
             else
             {
