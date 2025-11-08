@@ -363,6 +363,8 @@ class NFA:
             q = 0
         if 'c' == type:
             q = 0
+        if 'd' == type:
+            q = 0
         if '^' == type:
             q = False
         if '$' == type:
@@ -376,8 +378,8 @@ class NFA:
         if (',,' == type) or (',,,' == type):
             q = []
             for i in range(len(input)):
-                # push for insertion, deletion, substitution, transposition
-                q.append((input[i].q0(), 0, i, i, 0, 0))
+                # push for insertion, substitution, deletion, transposition
+                q.append((input[i].q0(), 0, i, 0, 0, i, 0))
         return {'q':q, 'e':0} # keep track of errors
 
     def d(self, qe, c):
@@ -462,16 +464,20 @@ class NFA:
                 e = q['e']
         if 'l' == type:
             if isinstance(c, int):
-                # q = q
-                pass
+                q = 0.1 if 0 == q else q
             else:
+                q = math.floor(q)
                 q = (q+1 if c == input[q] else 0) if q < len(input) else 0
         if 'c' == type:
             if isinstance(c, int):
-                # q = q
-                pass
+                q = 0.1 if 0 == q else q
             else:
                 q = 1 if c in input else 0
+        if 'd' == type:
+            if isinstance(c, int):
+                q = 0.1 if 0 == q else q
+            else:
+                q = 1 if c in '0123456789' else 0
         if '^' == type:
             q = isinstance(c, int) and (0 == c)
             #e = 0 if q else 1
@@ -526,33 +532,55 @@ class NFA:
             for qi in qq:
                 i = qi[1]
                 j = qi[2]
-                si = qi[3] # sub/ins
-                d = qi[4]  # del
-                t = qi[5]  # trans
+                p = qi[3]  # put/ins
+                s = qi[4]  # sub
+                d = qi[5]  # del
+                t = qi[6]  # trans
                 if input[j].accept(qi[0]):
-                    if i+1 < n:
+                    if (i+1 < n) and (j+1 < n):
                         q1 = input[j].d(qi[0], c)
                         if not input[j].reject(q1):
-                            qi = (q1, i, j, si, d, t)
+                            qi = (q1, i, j, p, s, d, t)
                             q.append(qi)
                         if not t:
                             for k in range(1, n-j):
                                 q0 = input[j+k].q0()
                                 q1 = input[j+k].d(q0, c)
                                 if not input[j+k].reject(q1):
-                                    qi = (q1, i+1, j+k, si, d+k-1, 0)
+                                    if 1 == k:
+                                        qi = (q1, i+1, j+k, p, s, d, 0)
+                                        q.append(qi)
+                                    else:
+                                        qi = (q1, i+1, j+k, 1, s, d, 0)
+                                        q.append(qi)
+                                        qi = (q1, i+1, j+k, p, 1, d, 0)
+                                        q.append(qi)
+                                        qi = (q1, i+1, j+k, p, s, d+k-1, 0)
+                                        q.append(qi)
                                 else:
-                                    qi = (q0, i+1, j+k, 1, d+k-1, 0)
-                                q.append(qi)
+                                    qi = (q0, i+1, j+k, 1, s, d, 0)
+                                    q.append(qi)
+                                    qi = (q0, i+1, j+k, p, 1, d, 0)
+                                    q.append(qi)
+                                    qi = (q0, i+1, j+k, p, s, d+k, 0)
+                                    q.append(qi)
                             # push transposition
                             if (',,,' == type) and (0 < j) and (i+1 == j):
                                 q0 = input[j-1].q0()
                                 q1 = input[j-1].d(q0, c)
                                 if not input[j-1].reject(q1):
-                                    qi = (q1, i+1, j-1, si, d, 1)
+                                    qi = (q1, i+1, j-1, p, s, d, 1)
                                     q.append(qi)
                     else:
                         q.append(qi)
+                        if not t:
+                            # push transposition
+                            if (',,,' == type) and (0 < j) and (i+1 == j):
+                                q0 = input[j-1].q0()
+                                q1 = input[j-1].d(q0, c)
+                                if not input[j-1].reject(q1):
+                                    qi = (q1, i+1, j-1, p, s, d, 1)
+                                    q.append(qi)
                 else:
                     q1 = input[j].d(qi[0], c)
                     if input[j].reject(q1):
@@ -561,18 +589,25 @@ class NFA:
                                 q0 = input[j+k].q0()
                                 q1 = input[j+k].d(q0, c)
                                 if not input[j+k].reject(q1):
-                                    qi = (q1, i, j+k, 1, d+k, 0)
+                                    qi = (q1, i, j+k, 1, s, d+k, 0)
+                                    q.append(qi)
+                                    qi = (q1, i, j+k, p, 1, d+k, 0)
+                                    q.append(qi)
                                 else:
-                                    qi = (q0, i, j+k, 1, d+k, 0)
-                                q.append(qi)
+                                    qi = (q0, i, j+k, p, s, d+k+1, 0)
+                                    q.append(qi)
+                                    qi = (q0, i, j+k, 1, s, d, 0)
+                                    q.append(qi)
+                                    qi = (q0, i, j+k, p, 1, d, 0)
+                                    q.append(qi)
                     else:
-                        qi = (q1, i, j, si, d, t)
+                        qi = (q1, i, j, p, s, d, t)
                         q.append(qi)
             e0 = e
             e = INF
             for qi in q:
-                if input[qi[2]].accept(qi[0]):
-                    e = min(e, qi[3]+qi[4]+n-1-max(qi[1], qi[2]))
+                if (max(qi[1], qi[2])+1 == n) and input[qi[2]].accept(qi[0]):
+                    e = min(e, qi[3]+qi[4]+qi[5]+qi[6])
             if not math.isfinite(e): e = e0+1
         return {'q':q, 'e':e} # keep track of errors
 
@@ -589,9 +624,11 @@ class NFA:
             else:
                 return input.accept_with_errors(q, type['total_errors'])
         if 'l' == type:
-            return q == len(input)
+            return math.floor(q) == len(input)
         if 'c' == type:
-            return q == 1
+            return math.floor(q) == 1
+        if 'd' == type:
+            return math.floor(q) == 1
         if '^' == type:
             return q
         if '$' == type:
@@ -623,6 +660,8 @@ class NFA:
             return 0 == q
         if 'c' == type:
             return 0 == q
+        if 'd' == type:
+            return 0 == q
         if '^' == type:
             return not q
         if '$' == type:
@@ -650,21 +689,21 @@ class NFA:
             return 0 < len(list(filter(lambda qi: (qi[1]+1 == n) and (qi[0]['e'] + qi[2] <= max_errors) and input[qi[1]].accept(qi[0]), q)))
         if (',,' == type) or (',,,' == type):
             n = len(input)
-            return 0 < len(list(filter(lambda qi: (qi[3]+qi[4]+n-1-max(qi[1], qi[2]) <= max_errors) and input[qi[2]].accept(qi[0]), q)))
+            return 0 < len(list(filter(lambda qi: (max(qi[1], qi[2])+1 == n) and (qi[3]+qi[4]+qi[5]+qi[6] <= max_errors) and input[qi[2]].accept(qi[0]), q)))
 
     def reject_with_errors(self, qe, max_errors = None):
-        if self.reject(qe): return True
-        if max_errors is None: return False
         type = self.type;
         input = self.input;
+        if (',,' == type) or (',,,' == type):
+            return False
+        if self.reject(qe): return True
+        if max_errors is None: return False
         q = qe['q']
         e = qe['e']
         if isinstance(type, dict) or (',' != type[0]):
             return e > max_errors
         if ',' == type:
             return len(q) == len(list(filter(lambda qi: (qi[0]['e'] + qi[2] > max_errors) or input[qi[1]].reject(qi[0]), q)))
-        if (',,' == type) or (',,,' == type):
-            return False
 
     def get_errors(self, qe):
         return qe['e']
@@ -696,6 +735,7 @@ class NFA:
                 j = n # failed, try next
             else:
                 j += 1 # continue
+        e = max(e, self.get_errors(q))
         return {'match' : None if return_match else -1, 'errors' : e}
 
     def match(self, string, offset = 0, return_match = False, return_err = False, q = None):

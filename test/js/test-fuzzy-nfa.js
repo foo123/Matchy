@@ -37,8 +37,8 @@ function test()
     test_case(test.nfa, test.pattern, "aaabbb", 0, 0); // 0 errors
     test_case(test.nfa, test.pattern, "bbbaaa", 0, 1); // 1 errors, deletion
     test_case(test.nfa, test.pattern, "bbb", 0, 1); // 1 errors, deletion
-    test_case(test.nfa, test.pattern, "cbbb", 1, 1); // 1 errors, deletion or substitution
-    test_case(test.nfa, test.pattern, "aacbbb", 3, 1); // 1 errors, deletion or substitution
+    test_case(test.nfa, test.pattern, "cbbb", 0, 1); // 1 errors, deletion or substitution
+    test_case(test.nfa, test.pattern, "aacbbb", 0, 1); // 1 errors, deletion or substitution
     test_case(test.nfa, test.pattern, "aaacbbb", 0, 1); // 1 errors, insertion
     echo();
 
