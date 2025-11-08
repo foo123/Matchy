@@ -4,7 +4,7 @@ Exact and fuzzy string and regular expression matching algorithms for PHP, JavaS
 
 ![Matchy](/matchy.jpg)
 
-**version: 4.0.0** in progress
+**version: 4.0.0** almost complete
 
 
 **Included Algorithms:**

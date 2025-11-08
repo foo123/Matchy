@@ -1010,15 +1010,15 @@ class MatchyNFA
         }
         if ('l' === $type)
         {
-            return 0 === $q;
+            return 0 == $q;
         }
         if ('c' === $type)
         {
-            return 0 === $q;
+            return 0 == $q;
         }
         if ('d' === $type)
         {
-            return 0 === $q;
+            return 0 == $q;
         }
         if ('^' === $type)
         {
